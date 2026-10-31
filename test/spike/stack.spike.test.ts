@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { Controller, Get, Inject, Injectable, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { EntitySchema, LockMode, type MikroORM } from '@mikro-orm/postgresql';
@@ -33,15 +33,15 @@ class SpikeModule {}
 let orm: MikroORM;
 let db: TestDatabase;
 
-// Banco descartável com só a migration do spike: a tabela não existe mais no schema real.
-beforeAll(async () => {
+// Banco descartável por teste, com só a migration do spike: a tabela não existe mais no schema real.
+beforeEach(async () => {
   db = await createTestDatabase({
     entities: [SpikeWallet],
     migrations: [{ name: 'Migration20260101000001_spike', class: Migration20260101000001_spike }],
   });
   orm = db.orm;
 });
-afterAll(async () => { await db.drop(); });
+afterEach(async () => { await db.drop(); });
 
 test('Nest: DI por tipo (emitDecoratorMetadata) e HTTP funcionam sob Bun', async () => {
   const app = await NestFactory.create(SpikeModule, { logger: false });
@@ -64,6 +64,7 @@ test('MikroORM: migration up/down/up programática com migrationsList', async ()
 });
 
 test('MikroORM: FOR UPDATE serializa duas transações na mesma linha (numeric volta como string)', async () => {
+  await orm.migrator.up();
   const id = crypto.randomUUID();
   await orm.em.fork().getConnection().execute(`insert into spike_wallets values ('${id}', '100.00', 1)`);
 

@@ -15,7 +15,8 @@ const orm = await MikroORM.init({
   entities: [],
   discovery: { warnWhenNoEntities: false },
   extensions: [Migrator],
-  migrations: { migrationsList },
+  // Sem snapshot: as migrations são escritas à mão, e ele só serviria ao `migration:create`.
+  migrations: { migrationsList, snapshot: false },
   allowGlobalContext: false,
 });
 

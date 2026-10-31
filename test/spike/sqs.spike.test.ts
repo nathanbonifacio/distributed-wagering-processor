@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 import {
+  CreateQueueCommand,
   DeleteMessageCommand,
+  DeleteQueueCommand,
   GetQueueAttributesCommand,
   GetQueueUrlCommand,
   ReceiveMessageCommand,
@@ -29,16 +31,24 @@ test('SQS: filas FIFO existem e a redrive policy aponta para a DLQ', async () =>
   await queueUrl('wager-events');
 });
 
+// Fila própria: a fila de entrada é compartilhada, e uma mensagem órfã quebraria as execuções seguintes.
 test('SQS: envia, recebe e apaga uma mensagem FIFO', async () => {
-  const url = await queueUrl('wager-transactions.fifo');
   const messageId = `spike-${crypto.randomUUID()}`;
-  await sqs.send(new SendMessageCommand({
-    QueueUrl: url,
-    MessageBody: JSON.stringify({ messageId }),
-    MessageGroupId: 'wallet-spike',
-    MessageDeduplicationId: messageId,
+  const { QueueUrl: url } = await sqs.send(new CreateQueueCommand({
+    QueueName: `${messageId}.fifo`,
+    Attributes: { FifoQueue: 'true' },
   }));
-  const res = await sqs.send(new ReceiveMessageCommand({ QueueUrl: url, WaitTimeSeconds: 5, MaxNumberOfMessages: 1 }));
-  expect(JSON.parse(res.Messages![0]!.Body!).messageId).toBe(messageId);
-  await sqs.send(new DeleteMessageCommand({ QueueUrl: url, ReceiptHandle: res.Messages![0]!.ReceiptHandle! }));
+  try {
+    await sqs.send(new SendMessageCommand({
+      QueueUrl: url,
+      MessageBody: JSON.stringify({ messageId }),
+      MessageGroupId: 'wallet-spike',
+      MessageDeduplicationId: messageId,
+    }));
+    const res = await sqs.send(new ReceiveMessageCommand({ QueueUrl: url, WaitTimeSeconds: 2, MaxNumberOfMessages: 1 }));
+    expect(JSON.parse(res.Messages![0]!.Body!).messageId).toBe(messageId);
+    await sqs.send(new DeleteMessageCommand({ QueueUrl: url, ReceiptHandle: res.Messages![0]!.ReceiptHandle! }));
+  } finally {
+    await sqs.send(new DeleteQueueCommand({ QueueUrl: url }));
+  }
 });

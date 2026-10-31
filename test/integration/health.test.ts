@@ -30,8 +30,10 @@ describe('GET /health (PostgreSQL e LocalStack reais)', () => {
   }
 
   afterAll(async () => {
-    await Promise.all(apps.map((a) => a.close()));
+    // Nessa ordem: fechar o buraco negro derruba a conexão pendurada, que senão seguraria o
+    // encerramento do pool até o DB_CONNECT_TIMEOUT_MS.
     await Promise.all(cleanups.map((c) => c()));
+    await Promise.all(apps.map((a) => a.close()));
   });
 
   const pgUrl = (host: string, port: number) => withHostPort(testEnv().DATABASE_URL!, host, port);
