@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { LedgerDirection } from '../../src/wallet/domain/ledger-entry';
-import { Wallet } from '../../src/wallet/domain/wallet';
-import { FailureCode } from '../../src/wagering/domain/failure-code';
-import { type ProcessWagerInput, WagerProcessor } from '../../src/wagering/domain/wager-processor';
+import { LedgerDirection } from '../../src/app/wallet/domain/ledger-entry.entity';
+import { Wallet } from '../../src/app/wallet/domain/wallet.entity';
+import { FailureCode } from '../../src/app/wagering/domain/failure-code';
+import { type ProcessWagerInput, WagerProcessor } from '../../src/app/wagering/domain/wager-processor';
 import {
   WagerTransaction,
   WagerTransactionKind as Kind,
   WagerTransactionStatus as Status,
-} from '../../src/wagering/domain/wager-transaction';
-import { InvalidWagerOperationError } from '../../src/wagering/domain/wagering-errors';
+} from '../../src/app/wagering/domain/wager-transaction.entity';
+import { InvalidWagerOperationError } from '../../src/app/wagering/domain/wagering-errors';
 import { brl, newTx, openWallet, processedTx, PLAYER_ID, T0, T1, T2, usd, WALLET_ID } from '../support/wagering-fixtures';
 
 const processor = new WagerProcessor();

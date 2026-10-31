@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { SQSClient } from '@aws-sdk/client-sqs';
 import { MikroORM } from '@mikro-orm/postgresql';
-import { DatabaseModule } from '../database/database.module';
+import { DatabaseModule } from '../../database/database.module';
 import { SqsModule } from '../messaging/infrastructure/sqs.module';
-import { APP_CONFIG, type AppConfig } from '../shared/infrastructure/config.module';
+import { APP_CONFIG, type AppConfig } from '../../shared/infrastructure/config.module';
 import { DEPENDENCY_PROBES, type DependencyProbe } from './dependency-probe';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';

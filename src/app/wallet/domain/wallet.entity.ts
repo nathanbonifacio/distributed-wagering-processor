@@ -1,5 +1,5 @@
-import { CurrencyMismatchError, Money, MoneyOverflowError } from '../../shared/domain/money';
-import { LedgerDirection, WalletLedgerEntry } from './ledger-entry';
+import { CurrencyMismatchError, Money, MoneyOverflowError } from '../../../shared/domain/money';
+import { LedgerDirection, WalletLedgerEntry } from './ledger-entry.entity';
 import { InsufficientFundsError, InvalidWalletError } from './wallet-errors';
 
 export interface WalletState {

@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { expect, test } from 'bun:test';
 import { GetQueueAttributesCommand, GetQueueUrlCommand, type SQSClient } from '@aws-sdk/client-sqs';
-import { SqsQueueProbe } from '../../src/health/probes';
+import { SqsQueueProbe } from '../../src/app/health/probes';
 
 /** Dublê mínimo do SQSClient: registra os comandos e responde com valores fixos. */
 class FakeSqs {

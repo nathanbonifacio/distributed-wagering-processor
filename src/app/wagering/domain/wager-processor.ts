@@ -1,8 +1,8 @@
-import type { Money } from '../../shared/domain/money';
-import { LedgerDirection, type WalletLedgerEntry } from '../../wallet/domain/ledger-entry';
-import type { Wallet } from '../../wallet/domain/wallet';
+import type { Money } from '../../../shared/domain/money';
+import { LedgerDirection, type WalletLedgerEntry } from '../../wallet/domain/ledger-entry.entity';
+import type { Wallet } from '../../wallet/domain/wallet.entity';
 import { FailureCode } from './failure-code';
-import { type WagerTransaction, WagerTransactionKind, WagerTransactionStatus } from './wager-transaction';
+import { type WagerTransaction, WagerTransactionKind, WagerTransactionStatus } from './wager-transaction.entity';
 import { InvalidWagerOperationError } from './wagering-errors';
 
 export interface ProcessWagerInput {

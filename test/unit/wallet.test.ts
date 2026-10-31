@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { CurrencyMismatchError, Money } from '../../src/shared/domain/money';
-import { LedgerDirection } from '../../src/wallet/domain/ledger-entry';
-import { Wallet } from '../../src/wallet/domain/wallet';
-import { InsufficientFundsError, InvalidLedgerEntryError, InvalidWalletError } from '../../src/wallet/domain/wallet-errors';
+import { LedgerDirection } from '../../src/app/wallet/domain/ledger-entry.entity';
+import { Wallet } from '../../src/app/wallet/domain/wallet.entity';
+import { InsufficientFundsError, InvalidLedgerEntryError, InvalidWalletError } from '../../src/app/wallet/domain/wallet-errors';
 import { brl, openWallet, PLAYER_ID, T0, T1, usd, WALLET_ID } from '../support/wagering-fixtures';
 
 const movement = (money: Money, entryId = 'entry-1') => ({ entryId, transactionId: 'tx-1', money, at: T1 });

@@ -1,6 +1,6 @@
-import type { Money } from '../../shared/domain/money';
-import { LedgerDirection } from '../../wallet/domain/ledger-entry';
-import type { Wallet } from '../../wallet/domain/wallet';
+import type { Money } from '../../../shared/domain/money';
+import { LedgerDirection } from '../../wallet/domain/ledger-entry.entity';
+import type { Wallet } from '../../wallet/domain/wallet.entity';
 import { FailureCode, isFailedCode, isRejectionCode } from './failure-code';
 import { InvalidTransactionStateError, InvalidWagerTransactionError } from './wagering-errors';
 

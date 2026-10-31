@@ -1,10 +1,10 @@
 import { Money } from '../../src/shared/domain/money';
-import { Wallet } from '../../src/wallet/domain/wallet';
+import { Wallet } from '../../src/app/wallet/domain/wallet.entity';
 import {
   type CreateWagerTransactionProps,
   WagerTransaction,
   WagerTransactionKind,
-} from '../../src/wagering/domain/wager-transaction';
+} from '../../src/app/wagering/domain/wager-transaction.entity';
 
 export const T0 = new Date('2026-10-31T12:00:00.000Z');
 export const T1 = new Date('2026-10-31T12:00:01.000Z');

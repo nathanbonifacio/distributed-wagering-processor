@@ -6,15 +6,15 @@ import {
   PermanentInfrastructureError,
   TransientInfrastructureError,
 } from '../../src/shared/application/infrastructure-error';
-import { LedgerDirection } from '../../src/wallet/domain/ledger-entry';
-import { FailureCode, isFailedCode, isRejectionCode } from '../../src/wagering/domain/failure-code';
+import { LedgerDirection } from '../../src/app/wallet/domain/ledger-entry.entity';
+import { FailureCode, isFailedCode, isRejectionCode } from '../../src/app/wagering/domain/failure-code';
 import {
   INTERNAL_PROVIDER_ID,
   WagerTransaction,
   WagerTransactionKind as Kind,
   WagerTransactionStatus as Status,
-} from '../../src/wagering/domain/wager-transaction';
-import { InvalidTransactionStateError, InvalidWagerTransactionError } from '../../src/wagering/domain/wagering-errors';
+} from '../../src/app/wagering/domain/wager-transaction.entity';
+import { InvalidTransactionStateError, InvalidWagerTransactionError } from '../../src/app/wagering/domain/wagering-errors';
 import { brl, newTx, openWallet, processedTx, T0, T1, T2, txProps, usd, WALLET_ID } from '../support/wagering-fixtures';
 
 const REF = 'ext-ref';

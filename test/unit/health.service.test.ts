@@ -1,8 +1,8 @@
 import 'reflect-metadata';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 import { Logger } from '@nestjs/common';
-import type { DependencyProbe } from '../../src/health/dependency-probe';
-import { HealthService } from '../../src/health/health.service';
+import type { DependencyProbe } from '../../src/app/health/dependency-probe';
+import { HealthService } from '../../src/app/health/health.service';
 import { withTimeout } from '../../src/shared/infrastructure/with-timeout';
 
 const probe = (name: string, check: DependencyProbe['check']): DependencyProbe => ({ name, check });

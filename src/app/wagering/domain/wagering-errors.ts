@@ -1,5 +1,5 @@
-import { DomainError } from '../../shared/domain/domain-error';
-import { ProgrammingError } from '../../shared/domain/programming-error';
+import { DomainError } from '../../../shared/domain/domain-error';
+import { ProgrammingError } from '../../../shared/domain/programming-error';
 
 /** Dados que nunca formam uma transação válida (ex.: REFUND sem referência, OPENING externo). */
 export class InvalidWagerTransactionError extends DomainError {

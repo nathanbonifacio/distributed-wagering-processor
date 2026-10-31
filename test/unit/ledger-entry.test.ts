@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { type CreateLedgerEntryProps, LedgerDirection, WalletLedgerEntry } from '../../src/wallet/domain/ledger-entry';
-import { InvalidLedgerEntryError } from '../../src/wallet/domain/wallet-errors';
+import { type CreateLedgerEntryProps, LedgerDirection, WalletLedgerEntry } from '../../src/app/wallet/domain/ledger-entry.entity';
+import { InvalidLedgerEntryError } from '../../src/app/wallet/domain/wallet-errors';
 import { brl, T0, usd, WALLET_ID } from '../support/wagering-fixtures';
 
 const props = (overrides: Partial<CreateLedgerEntryProps> = {}): CreateLedgerEntryProps => ({

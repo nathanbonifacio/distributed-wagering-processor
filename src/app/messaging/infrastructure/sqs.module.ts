@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SQSClient } from '@aws-sdk/client-sqs';
-import { APP_CONFIG, type AppConfig } from '../../shared/infrastructure/config.module';
+import { APP_CONFIG, type AppConfig } from '../../../shared/infrastructure/config.module';
 
 @Module({
   providers: [

@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test --timeout 60000",
     "test:unit": "bun test test/unit",
+    "test:architecture": "bun test test/architecture",
     "test:integration": "bun test --timeout 60000 test/integration",
     "test:concurrency": "bun test --timeout 120000 test/concurrency"
   },

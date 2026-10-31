@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { TimeoutError, withTimeout } from '../shared/infrastructure/with-timeout';
-import { APP_CONFIG, type AppConfig } from '../shared/infrastructure/config.module';
+import { TimeoutError, withTimeout } from '../../shared/infrastructure/with-timeout';
+import { APP_CONFIG, type AppConfig } from '../../shared/infrastructure/config.module';
 import { DEPENDENCY_PROBES, type DependencyProbe } from './dependency-probe';
 
 /** Resposta PÚBLICA: só categorias genéricas. O detalhe do erro fica no log interno. */

@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { afterAll, describe, expect, test } from 'bun:test';
 import { type INestApplication, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { HealthModule } from '../../src/health/health.module';
+import { HealthModule } from '../../src/app/health/health.module';
 import { ConfigModule } from '../../src/shared/infrastructure/config.module';
 import { testEnv, withHostPort } from '../support/env';
 import { startBlackhole, startTcpProxy } from '../support/tcp-proxy';
