@@ -4,7 +4,7 @@ import { ApiModule } from './api.module';
 import { loadConfig } from './shared/infrastructure/config';
 
 const config = loadConfig();
-const app = await NestFactory.create(ApiModule);
+const app = await NestFactory.create(ApiModule.register());
 app.enableShutdownHooks();
 await app.listen(config.PORT, '0.0.0.0');
 console.log(JSON.stringify({ msg: 'api listening', port: config.PORT }));

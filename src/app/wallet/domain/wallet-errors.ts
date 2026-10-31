@@ -11,6 +11,11 @@ export class WalletNotFoundError extends DomainError {
   readonly code = 'WALLET_NOT_FOUND';
 }
 
+/** Já existe wallet para o mesmo player e moeda. */
+export class WalletAlreadyExistsError extends DomainError {
+  readonly code = 'WALLET_ALREADY_EXISTS';
+}
+
 export class InvalidWalletError extends ProgrammingError {
   readonly code = 'INVALID_WALLET';
 }

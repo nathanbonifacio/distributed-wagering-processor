@@ -68,8 +68,7 @@ ledger pertencem a `wallet`; a `WagerTransaction` e o `WagerProcessor.processOpe
 `wagering`. Como `wagering` já depende de `wallet`, colocar o `OpenWallet` em `wallet` criaria o ciclo
 `wallet → wagering → wallet`. O teste de arquitetura reprova esse ciclo.
 
-**Decisão adiada:** o local do `OpenWallet` não foi fixado. Opções para quando o fluxo for implementado
-(Etapas 4 a 6):
+**Decisão (Etapa 6): opção A**, por ser o único fluxo que cruza os agregados até agora (ver 0005). Opções avaliadas:
 
 | Opção | Composição | Custo |
 |---|---|---|
