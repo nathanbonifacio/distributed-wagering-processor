@@ -19,3 +19,16 @@ export class TransientInfrastructureError extends InfrastructureError {
 export class PermanentInfrastructureError extends InfrastructureError {
   readonly retryable = false;
 }
+
+/**
+ * O banco recusou a escrita por uma constraint ou trigger. `constraint` permite ao use case decidir
+ * (ex.: wallet duplicada vira conflito). A mensagem não traz SQL nem valores; o original fica em `cause`.
+ */
+export class PersistenceConstraintError extends PermanentInfrastructureError {
+  constructor(
+    readonly constraint: string | undefined,
+    options?: ErrorOptions,
+  ) {
+    super(`restrição do banco violada: ${constraint ?? 'desconhecida'}`, options);
+  }
+}

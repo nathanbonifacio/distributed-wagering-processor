@@ -85,6 +85,9 @@ export interface WagerTransactionState extends CreateWagerTransactionProps {
   /** Saldo observado ao decidir; é o que o replay devolve. Ausente enquanto não houver decisão. */
   observedBalance?: Money;
   processedAt?: Date;
+  /** Tentativas já feitas de resolver a referência, e quando será a próxima. */
+  attempts?: number;
+  nextAttemptAt?: Date;
 }
 
 export class WagerTransaction {
@@ -108,6 +111,8 @@ export class WagerTransaction {
     private _failureCode?: FailureCode,
     private _observedBalance?: Money,
     private _processedAt?: Date,
+    private _attempts: number = 0,
+    private _nextAttemptAt?: Date,
   ) {}
 
   /** Operação externa. Nasce em PENDING e valida a exigência de referência por kind. */
@@ -159,6 +164,8 @@ export class WagerTransaction {
       state.failureCode,
       state.observedBalance,
       state.processedAt && new Date(state.processedAt),
+      state.attempts ?? 0,
+      state.nextAttemptAt && new Date(state.nextAttemptAt),
     );
   }
 
@@ -238,6 +245,14 @@ export class WagerTransaction {
     return this._processedAt && new Date(this._processedAt);
   }
 
+  get attempts(): number {
+    return this._attempts;
+  }
+
+  get nextAttemptAt(): Date | undefined {
+    return this._nextAttemptAt && new Date(this._nextAttemptAt);
+  }
+
   markProcessed(referenceTransactionId: string | undefined, at: Date): void {
     this.assertCanTransitionTo(WagerTransactionStatus.Processed);
     if ((referenceTransactionId === undefined) !== (this.referenceExternalTransactionId === undefined)) {
@@ -248,11 +263,24 @@ export class WagerTransaction {
     this._referenceTransactionId = referenceTransactionId;
     this._status = WagerTransactionStatus.Processed;
     this._processedAt = new Date(at);
+    this._nextAttemptAt = undefined;
   }
 
   markPendingReference(): void {
     this.assertCanTransitionTo(WagerTransactionStatus.PendingReference);
     this._status = WagerTransactionStatus.PendingReference;
+  }
+
+  /**
+   * Agenda a próxima tentativa de resolver a referência. O primeiro agendamento não conta como
+   * tentativa; os seguintes sim. O prazo (backoff e limite) é decidido por quem chama.
+   */
+  scheduleReferenceRetry(nextAttemptAt: Date): void {
+    if (this._status !== WagerTransactionStatus.PendingReference) {
+      throw new InvalidTransactionStateError(`${this.id}: só PENDING_REFERENCE é agendada, não ${this._status}`);
+    }
+    if (this._nextAttemptAt) this._attempts += 1;
+    this._nextAttemptAt = new Date(nextAttemptAt);
   }
 
   reject(code: FailureCode, at: Date): void {
@@ -263,6 +291,7 @@ export class WagerTransaction {
     this._failureCode = code;
     this._status = WagerTransactionStatus.Rejected;
     this._processedAt = new Date(at);
+    this._nextAttemptAt = undefined;
   }
 
   fail(code: FailureCode, at: Date): void {
@@ -273,6 +302,7 @@ export class WagerTransaction {
     this._failureCode = code;
     this._status = WagerTransactionStatus.Failed;
     this._processedAt = new Date(at);
+    this._nextAttemptAt = undefined;
   }
 
   /** Registra o saldo visto na decisão, para a regra 7 (replay devolve o saldo da época). */

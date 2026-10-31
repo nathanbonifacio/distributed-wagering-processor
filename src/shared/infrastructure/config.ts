@@ -17,6 +17,8 @@ const schema = z.object({
   DB_CONNECT_TIMEOUT_MS: z.coerce.number().int().min(100).default(5000),
   /** Teto de duração de uma query no driver (cliente e servidor): rede de segurança, não regra de negócio. */
   DB_QUERY_TIMEOUT_MS: z.coerce.number().int().min(100).default(30000),
+  /** Espera máxima por um lock dentro de uma transação; estourar é falha transitória. */
+  DB_LOCK_TIMEOUT_MS: z.coerce.number().int().min(1).default(5000),
 });
 
 export type AppConfig = z.infer<typeof schema>;

@@ -193,6 +193,40 @@ describe('transições', () => {
     expect(tx.status).toBe(Status.Failed);
   });
 
+  test('agendamento: o primeiro não conta como tentativa, os seguintes sim, e decidir limpa o prazo', () => {
+    const tx = refund();
+    tx.markPendingReference();
+    tx.scheduleReferenceRetry(T1);
+    expect(tx.attempts).toBe(0);
+    expect(tx.nextAttemptAt).toEqual(T1);
+    tx.scheduleReferenceRetry(T2);
+    expect(tx.attempts).toBe(1);
+    expect(tx.nextAttemptAt).toEqual(T2);
+    tx.markProcessed('tx-bet', T2);
+    expect(tx.nextAttemptAt).toBeUndefined();
+    expect(tx.attempts).toBe(1);
+  });
+
+  test('agendamento só vale em PENDING_REFERENCE', () => {
+    expect(() => refund().scheduleReferenceRetry(T1)).toThrow(InvalidTransactionStateError);
+    const done = newTx(Kind.Bet);
+    done.markProcessed(undefined, T1);
+    expect(() => done.scheduleReferenceRetry(T2)).toThrow(InvalidTransactionStateError);
+  });
+
+  test('rejeitar ou falhar uma pendente também limpa o prazo', () => {
+    const rejected = refund();
+    rejected.markPendingReference();
+    rejected.scheduleReferenceRetry(T1);
+    rejected.reject(FailureCode.ReferenceNotFound, T2);
+    expect(rejected.nextAttemptAt).toBeUndefined();
+    const failed = refund();
+    failed.markPendingReference();
+    failed.scheduleReferenceRetry(T1);
+    failed.fail(FailureCode.InternalError, T2);
+    expect(failed.nextAttemptAt).toBeUndefined();
+  });
+
   test('PENDING_REFERENCE não se repete: a transação apenas permanece', () => {
     const tx = refund();
     tx.markPendingReference();

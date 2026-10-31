@@ -44,7 +44,7 @@ async function wallet(overrides: Row = {}): Promise<Row & { id: string }> {
 
 function txRow(walletId: string, overrides: Row = {}): Row & { id: string } {
   const external = randomUUID();
-  return {
+  const row = {
     id: randomUUID(),
     provider_id: 'provider-a',
     external_transaction_id: external,
@@ -63,6 +63,8 @@ function txRow(walletId: string, overrides: Row = {}): Row & { id: string } {
     processed_at: NOW,
     ...overrides,
   };
+  // A moeda do saldo observado acompanha o saldo, salvo quando o teste a informa.
+  return { observed_balance_currency: row.observed_balance === null || row.observed_balance === undefined ? null : 'BRL', ...row };
 }
 
 async function tx(walletId: string, overrides: Row = {}): Promise<Row & { id: string }> {
@@ -253,6 +255,17 @@ describe('wager_transactions: valores de domínio', () => {
     );
   });
 
+  test('moeda do saldo observado: acompanha o saldo, tem formato válido e pode diferir da operação', async () => {
+    const w = await wallet();
+    await expectViolation(() => tx(w.id, { observed_balance_currency: null }), 'wager_tx_observed_balance_currency_paired');
+    await expectViolation(
+      () => tx(w.id, { status: 'FAILED', failure_code: 'INTERNAL_ERROR', observed_balance: null, observed_balance_currency: 'BRL' }),
+      'wager_tx_observed_balance_currency_paired',
+    );
+    await expectViolation(() => tx(w.id, { observed_balance_currency: 'brl' }), 'wager_tx_observed_balance_currency_format');
+    await tx(w.id, { status: 'REJECTED', failure_code: 'CURRENCY_MISMATCH', currency: 'USD', observed_balance_currency: 'BRL' });
+  });
+
   test('pendente está sempre agendada, e só pendente tem agendamento', async () => {
     const w = await wallet();
     const pending = { kind: 'REFUND', reference_external_transaction_id: 'x', status: 'PENDING_REFERENCE', processed_at: null, observed_balance: null };
@@ -397,7 +410,8 @@ describe('wager_transactions: triggers de estado', () => {
     await db.sql(`UPDATE wager_transactions SET attempts = 1, next_attempt_at = ? WHERE id = ?`, [NOW, row.id]);
     await db.sql(
       `UPDATE wager_transactions
-       SET status = 'PROCESSED', processed_at = ?, observed_balance = '100.00', next_attempt_at = NULL, reference_transaction_id = ?
+       SET status = 'PROCESSED', processed_at = ?, observed_balance = '100.00', observed_balance_currency = 'BRL',
+           next_attempt_at = NULL, reference_transaction_id = ?
        WHERE id = ?`,
       [NOW, bet.id, row.id],
     );
@@ -409,7 +423,8 @@ describe('wager_transactions: triggers de estado', () => {
     const row = await tx((await wallet()).id, pending());
     await db.sql(
       `UPDATE wager_transactions
-       SET status = 'REJECTED', failure_code = 'REFERENCE_NOT_FOUND', processed_at = ?, observed_balance = '100.00', next_attempt_at = NULL
+       SET status = 'REJECTED', failure_code = 'REFERENCE_NOT_FOUND', processed_at = ?, observed_balance = '100.00',
+           observed_balance_currency = 'BRL', next_attempt_at = NULL
        WHERE id = ?`,
       [NOW, row.id],
     );

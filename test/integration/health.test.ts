@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { afterAll, describe, expect, test } from 'bun:test';
 import { type INestApplication, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { DatabaseModule } from '../../src/database/database.module';
 import { HealthModule } from '../../src/app/health/health.module';
 import { ConfigModule } from '../../src/shared/infrastructure/config.module';
 import { testEnv, withHostPort } from '../support/env';
@@ -17,7 +18,7 @@ describe('GET /health (PostgreSQL e LocalStack reais)', () => {
   const cleanups: Array<() => Promise<void>> = [];
 
   async function start(overrides: Record<string, string> = {}) {
-    @Module({ imports: [ConfigModule.register(testEnv(overrides)), HealthModule] })
+    @Module({ imports: [ConfigModule.register(testEnv(overrides)), DatabaseModule.forRoot(), HealthModule] })
     class TestAppModule {}
     const app = await NestFactory.create(TestAppModule, { logger: false });
     await app.listen(0);

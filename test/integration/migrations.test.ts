@@ -81,6 +81,26 @@ describe('migrations em um banco limpo', () => {
     expect(await schemaObjects(db)).toEqual(before);
   });
 
+  test('migrar com dados existentes: preenche a moeda do saldo observado, mesmo em linhas terminais', async () => {
+    await db.orm.migrator.up({ to: 'Migration20261031000007_create_integrity_triggers' });
+    const [walletId, playerId, txId] = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()];
+    const now = '2026-10-31T12:00:00.000Z';
+    await db.sql(`INSERT INTO wallets VALUES (?, ?, 'BRL', '10.00', 1, ?, ?)`, [walletId, playerId, now, now]);
+    await db.sql(
+      `INSERT INTO wager_transactions (id, provider_id, external_transaction_id, idempotency_key, payload_hash, wallet_id,
+         player_id, round_id, game_id, kind, amount, currency, status, failure_code, observed_balance, created_at, processed_at)
+       VALUES (?, 'p', 'e', 'k', ?, ?, ?, 'r', 'g', 'BET', '1.00', 'USD', 'REJECTED', 'CURRENCY_MISMATCH', '10.00', ?, ?)`,
+      [txId, 'a'.repeat(64), walletId, playerId, now, now],
+    );
+
+    await db.orm.migrator.up();
+
+    const [row] = await db.sql('SELECT observed_balance_currency FROM wager_transactions WHERE id = ?', [txId]);
+    expect(row?.observed_balance_currency).toBe('BRL');
+    // O trigger de imutabilidade voltou a valer depois do backfill.
+    await expect(db.sql('UPDATE wager_transactions SET attempts = 1 WHERE id = ?', [txId])).rejects.toThrow('estado terminal');
+  });
+
   test('cada migration é reversível isoladamente, da última à primeira', async () => {
     await db.orm.migrator.up();
     const states: Awaited<ReturnType<typeof schemaObjects>>[] = [];
@@ -124,9 +144,10 @@ describe('script de migração real (bun run src/database/migrate.ts)', () => {
 
     const down = await migrate('down');
     expect(down.code).toBe(0);
-    expect(down.stdout).toContain('Migration20261031000007_create_integrity_triggers');
-    expect((await schemaObjects(db)).triggers).toEqual([]);
+    expect(down.stdout).toContain(migrationsList.at(-1)!.name);
+    expect(down.stdout).not.toContain(migrationsList.at(-2)!.name);
     expect((await schemaObjects(db)).tables).toEqual(TABLES);
+    expect(await db.orm.migrator.getPending()).toHaveLength(1);
   });
 
   test('direção inválida falha sem tocar no banco', async () => {

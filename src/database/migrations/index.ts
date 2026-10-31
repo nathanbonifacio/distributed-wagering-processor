@@ -6,6 +6,7 @@ import { Migration20261031000004_create_wallet_ledger_entries } from './Migratio
 import { Migration20261031000005_create_inbox_messages } from './Migration20261031000005_create_inbox_messages';
 import { Migration20261031000006_create_outbox_messages } from './Migration20261031000006_create_outbox_messages';
 import { Migration20261031000007_create_integrity_triggers } from './Migration20261031000007_create_integrity_triggers';
+import { Migration20261031000008_add_observed_balance_currency } from './Migration20261031000008_add_observed_balance_currency';
 
 /** Lista explícita: o CLI do MikroORM assume ts-node, então registramos as migrations à mão. */
 export const migrationsList = [
@@ -17,4 +18,5 @@ export const migrationsList = [
   { name: 'Migration20261031000005_create_inbox_messages', class: Migration20261031000005_create_inbox_messages },
   { name: 'Migration20261031000006_create_outbox_messages', class: Migration20261031000006_create_outbox_messages },
   { name: 'Migration20261031000007_create_integrity_triggers', class: Migration20261031000007_create_integrity_triggers },
+  { name: 'Migration20261031000008_add_observed_balance_currency', class: Migration20261031000008_add_observed_balance_currency },
 ];
