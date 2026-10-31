@@ -1,0 +1,36 @@
+{
+  "name": "wagering-processor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start:api": "bun run src/main.api.ts",
+    "start:worker": "bun run src/main.worker.ts",
+    "migration:up": "bun run src/database/migrate.ts up",
+    "migration:down": "bun run src/database/migrate.ts down",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test --timeout 60000",
+    "test:unit": "bun test test/unit",
+    "test:integration": "bun test --timeout 60000 test/integration",
+    "test:concurrency": "bun test --timeout 120000 test/concurrency"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.1161.0",
+    "@mikro-orm/core": "^7.2.5",
+    "@mikro-orm/migrations": "^7.2.5",
+    "@mikro-orm/postgresql": "^7.2.5",
+    "@nestjs/common": "^12.3.2",
+    "@nestjs/core": "^12.3.2",
+    "@nestjs/platform-express": "^12.3.2",
+    "decimal.js": "^10.6.0",
+    "pino": "^10.4.0",
+    "prom-client": "^15.1.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "typescript": "^7.0.2"
+  }
+}
