@@ -1,0 +1,5 @@
+# Scripts executados dentro de containers Linux precisam de LF, mesmo em clones Windows.
+* text=auto
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf

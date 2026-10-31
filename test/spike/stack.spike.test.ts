@@ -34,7 +34,7 @@ let orm: MikroORM;
 
 beforeAll(async () => {
   orm = await MikroORM.init({
-    clientUrl: 'postgres://wagering:wagering@localhost:5432/wagering',
+    clientUrl: process.env.DATABASE_URL ?? 'postgres://wagering:wagering@localhost:5432/wagering',
     entities: [SpikeWallet],
     extensions: [Migrator],
     migrations: { migrationsList: [{ name: 'Migration20260101000001_spike', class: Migration20260101000001_spike }] },
@@ -69,7 +69,7 @@ test('MikroORM: FOR UPDATE serializa duas transações na mesma linha (numeric v
   const id = crypto.randomUUID();
   await orm.em.fork().getConnection().execute(`insert into spike_wallets values ('${id}', '100.00', 1)`);
 
-  const spend = async (amount: number) => orm.em.fork().transactional(async (em) => {
+  const spend = async (amount: string) => orm.em.fork().transactional(async (em) => {
     const w = await em.findOneOrFail(SpikeWallet, { id }, { lockMode: LockMode.PESSIMISTIC_WRITE });
     await Bun.sleep(150);
     const amt = new Decimal(amount);
@@ -79,7 +79,7 @@ test('MikroORM: FOR UPDATE serializa duas transações na mesma linha (numeric v
     return 'PROCESSED';
   });
 
-  const results = await Promise.all([spend(80), spend(80)]);
+  const results = await Promise.all([spend('80.00'), spend('80.00')]);
   const row = (await orm.em.fork().getConnection().execute(`select balance, version from spike_wallets where id='${id}'`))[0]!;
   expect(results.sort()).toEqual(['PROCESSED', 'REJECTED']);
   expect(row.balance).toBe('20.00');

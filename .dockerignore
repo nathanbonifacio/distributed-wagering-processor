@@ -2,3 +2,5 @@ node_modules
 .git
 test
 *.md
+.env
+.env.*

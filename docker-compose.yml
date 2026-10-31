@@ -1,25 +1,27 @@
+# Variáveis vêm do .env (ver .env.example); os defaults abaixo permitem subir sem .env.
+# Dentro dos containers os hosts são `postgres` e `localstack`; no host, `localhost`.
 services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: wagering
-      POSTGRES_PASSWORD: wagering
-      POSTGRES_DB: wagering
-    ports: ["5432:5432"]
+      POSTGRES_USER: ${POSTGRES_USER:-wagering}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wagering}
+      POSTGRES_DB: ${POSTGRES_DB:-wagering}
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U wagering -d wagering"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 2s
       timeout: 3s
       retries: 30
 
   localstack:
-    # Fixe a tag após validar no seu ambiente (ver ARCHITECTURE.md: licenciamento/token).
+    # Tag 4.4 validada sem token (ver ARCHITECTURE.md: licenciamento/token).
     image: localstack/localstack:4.4
     environment:
       SERVICES: sqs
-      AWS_DEFAULT_REGION: us-east-1
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
       LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-}
-    ports: ["4566:4566"]
+    ports: ["${LOCALSTACK_PORT:-4566}:4566"]
     volumes:
       - ./infra/localstack/init-queues.sh:/etc/localstack/init/ready.d/init-queues.sh:ro
     healthcheck:
@@ -33,11 +35,11 @@ services:
     build: .
     command: ["bun", "run", "migration:up"]
     environment: &app-env
-      DATABASE_URL: postgres://wagering:wagering@postgres:5432/wagering
+      DATABASE_URL: postgres://${POSTGRES_USER:-wagering}:${POSTGRES_PASSWORD:-wagering}@postgres:5432/${POSTGRES_DB:-wagering}
       SQS_ENDPOINT: http://localstack:4566
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
     depends_on:
       postgres: { condition: service_healthy }
     restart: "no"
@@ -50,11 +52,29 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       localstack: { condition: service_healthy }
+    healthcheck:
+      # "healthy" = pronto para receber tráfego (readiness). A liveness (/health/live) é para
+      # orquestradores que reiniciam; o Compose não reinicia container por healthcheck.
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
 
   worker:
     build: .
     command: ["bun", "run", "start:worker"]
-    environment: *app-env
+    # A porta interna 3100 (health e, depois, /metrics) NÃO é publicada no host de propósito.
+    environment:
+      <<: *app-env
+      WORKER_PORT: "3100"
     depends_on:
       migrate: { condition: service_completed_successfully }
       localstack: { condition: service_healthy }
+    healthcheck:
+      # Pronto para processar mensagens = PostgreSQL, fila de entrada e fila de eventos acessíveis.
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3100/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
