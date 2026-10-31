@@ -2,10 +2,10 @@ import 'reflect-metadata';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { Controller, Get, Inject, Injectable, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { EntitySchema, LockMode, MikroORM } from '@mikro-orm/postgresql';
-import { Migrator } from '@mikro-orm/migrations';
+import { EntitySchema, LockMode, type MikroORM } from '@mikro-orm/postgresql';
 import Decimal from 'decimal.js';
 import { Migration20260101000001_spike } from '../../src/database/migrations/Migration20260101000001_spike';
+import { createTestDatabase, type TestDatabase } from '../support/test-database';
 
 interface SpikeWalletRow { id: string; balance: string; version: number }
 const SpikeWallet = new EntitySchema<SpikeWalletRow>({
@@ -31,18 +31,17 @@ class PingController {
 class SpikeModule {}
 
 let orm: MikroORM;
+let db: TestDatabase;
 
+// Banco descartável com só a migration do spike: a tabela não existe mais no schema real.
 beforeAll(async () => {
-  orm = await MikroORM.init({
-    clientUrl: process.env.DATABASE_URL ?? 'postgres://wagering:wagering@localhost:5432/wagering',
+  db = await createTestDatabase({
     entities: [SpikeWallet],
-    extensions: [Migrator],
-    migrations: { migrationsList: [{ name: 'Migration20260101000001_spike', class: Migration20260101000001_spike }] },
-    allowGlobalContext: false,
-    debug: false,
+    migrations: [{ name: 'Migration20260101000001_spike', class: Migration20260101000001_spike }],
   });
+  orm = db.orm;
 });
-afterAll(async () => { await orm.close(true); });
+afterAll(async () => { await db.drop(); });
 
 test('Nest: DI por tipo (emitDecoratorMetadata) e HTTP funcionam sob Bun', async () => {
   const app = await NestFactory.create(SpikeModule, { logger: false });
@@ -55,7 +54,6 @@ test('Nest: DI por tipo (emitDecoratorMetadata) e HTTP funcionam sob Bun', async
 
 test('MikroORM: migration up/down/up programática com migrationsList', async () => {
   const m = orm.migrator;
-  await orm.em.fork().getConnection().execute('DROP TABLE IF EXISTS spike_wallets, mikro_orm_migrations');
   await m.up();
   await m.down();
   const gone = await orm.em.fork().getConnection().execute(`select to_regclass('spike_wallets') as t`);
