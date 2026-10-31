@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { type EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import { InboxMessageSchema } from './app/messaging/infrastructure/persistence/inbox-message.schema';
 import { MikroOrmInboxRepository } from './app/messaging/infrastructure/persistence/mikro-orm-inbox.repository';
@@ -38,6 +38,7 @@ export function createPersistenceContext(em: EntityManager): WageringPersistence
  * Raiz de composição da persistência: é o único lugar que conhece as implementações. Os use cases
  * dependem do token UNIT_OF_WORK e dos ports, e cada módulo continua sem importar a infraestrutura do outro.
  */
+@Global()
 @Module({
   imports: [DatabaseModule.forRoot(PERSISTENCE_SCHEMAS)],
   providers: [

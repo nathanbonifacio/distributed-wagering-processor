@@ -6,6 +6,11 @@ export class InsufficientFundsError extends DomainError {
   readonly code = 'INSUFFICIENT_FUNDS';
 }
 
+/** A submissão aponta para uma wallet inexistente. Nada é persistido. */
+export class WalletNotFoundError extends DomainError {
+  readonly code = 'WALLET_NOT_FOUND';
+}
+
 export class InvalidWalletError extends ProgrammingError {
   readonly code = 'INVALID_WALLET';
 }
