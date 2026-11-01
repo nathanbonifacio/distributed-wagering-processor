@@ -19,6 +19,11 @@ const schema = z.object({
   DB_QUERY_TIMEOUT_MS: z.coerce.number().int().min(100).default(30000),
   /** Espera máxima por um lock dentro de uma transação; estourar é falha transitória. */
   DB_LOCK_TIMEOUT_MS: z.coerce.number().int().min(1).default(5000),
+  /** Intervalo entre consultas da outbox quando não há lote cheio. */
+  OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().min(10).default(1000),
+  OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(100).default(10),
+  /** Prazo de cada envio ao SQS. A reserva de um lote dura 6 vezes este valor. */
+  OUTBOX_PUBLISH_TIMEOUT_MS: z.coerce.number().int().min(100).default(5000),
 });
 
 export type AppConfig = z.infer<typeof schema>;

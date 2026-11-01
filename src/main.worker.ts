@@ -4,7 +4,7 @@ import { WorkerModule } from './worker.module';
 import { loadConfig } from './shared/infrastructure/config';
 
 const config = loadConfig();
-const app = await NestFactory.create(WorkerModule);
+const app = await NestFactory.create(WorkerModule.register());
 app.enableShutdownHooks();
 // Porta interna do worker (health e, depois, /metrics); não é publicada no host pelo Compose.
 await app.listen(config.WORKER_PORT, '0.0.0.0');

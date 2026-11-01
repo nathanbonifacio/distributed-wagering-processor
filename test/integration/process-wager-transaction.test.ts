@@ -801,12 +801,12 @@ describe('atomicidade e classificação de falhas', () => {
     ['depois do primeiro evento', (real) => {
       let enqueued = 0;
       return {
-        outbox: {
+        outbox: overriding(real.outbox, {
           enqueue: async (record) => {
             await real.outbox.enqueue(record);
             if (++enqueued === 1) fail();
           },
-        },
+        }),
       };
     }],
   ])('falha %s desfaz transação, saldo, ledger e eventos, e o reenvio aplica uma vez', async (_where, override) => {
@@ -901,7 +901,7 @@ describe('atomicidade e classificação de falhas', () => {
   test('falha inesperada é propagada sem registrar estado terminal', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
-    const failing = buildUseCase(uowWith(() => ({ outbox: { enqueue: async () => fail('defeito') } })));
+    const failing = buildUseCase(uowWith((real) => ({ outbox: overriding(real.outbox, { enqueue: async () => fail('defeito') }) })));
     const error = await expectError(failing.execute(bet), Error);
     expect(error.message).toBe('defeito');
     expect(await uow.run((c) => c.transactions.findByIdempotencyKey(bet.idempotencyKey))).toBeUndefined();
