@@ -139,7 +139,7 @@ describe('POST /wallets/:walletId/reconciliation: divergences', () => {
     });
     // Logged with what is needed to diagnose, and without the balances themselves.
     expect(logged).toHaveBeenCalledTimes(1);
-    const message = String(logged.mock.calls[0]?.[0]);
+    const message = JSON.stringify(logged.mock.calls[0]?.[0]);
     expect(message).toContain(wallet.id);
     expect(message).toContain('7.50');
     expect(message).not.toContain('82.50');
@@ -209,7 +209,7 @@ describe('POST /wallets/:walletId/reconciliation: divergences', () => {
       checkedEntries: 2,
     });
     expect(logged).toHaveBeenCalledTimes(1);
-    expect(String(logged.mock.calls[0]?.[0])).toContain('foreignCurrencyEntries=1');
+    expect(logged.mock.calls[0]?.[0]).toMatchObject({ walletId: wallet.id, foreignCurrencyEntries: 1 });
   });
 });
 

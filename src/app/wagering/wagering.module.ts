@@ -7,13 +7,15 @@ import type { WageringPersistence } from './application/ports/wagering-persisten
 import { ProcessWagerTransaction } from './application/process-wager-transaction.use-case';
 import { ReferenceRetryPolicy } from './domain/reference-retry-policy';
 import { WagerProcessor } from './domain/wager-processor';
+import { ObservedWagerTelemetry } from './infrastructure/wager-telemetry';
+import { AppMetrics } from '../../shared/observability/app-metrics';
 
 @Module({
   providers: [
     {
       provide: ProcessWagerTransaction,
-      inject: [UNIT_OF_WORK, APP_CONFIG],
-      useFactory: (unitOfWork: UnitOfWork<WageringPersistence>, config: AppConfig) =>
+      inject: [UNIT_OF_WORK, APP_CONFIG, { token: AppMetrics, optional: true }],
+      useFactory: (unitOfWork: UnitOfWork<WageringPersistence>, config: AppConfig, metrics?: AppMetrics) =>
         new ProcessWagerTransaction(
           unitOfWork,
           new WagerProcessor(),
@@ -24,6 +26,7 @@ import { WagerProcessor } from './domain/wager-processor';
             maxDelayMs: config.PENDING_REFERENCE_RETRY_MAX_MS,
             maxAttempts: config.PENDING_REFERENCE_MAX_ATTEMPTS,
           }),
+          metrics ? new ObservedWagerTelemetry(metrics) : undefined,
         ),
     },
     {

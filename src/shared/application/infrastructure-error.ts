@@ -12,8 +12,17 @@ export abstract class InfrastructureError extends Error {
   }
 }
 
+/** Por que a falha foi transitória, quando é uma disputa de concorrência (e não, por exemplo, a rede). */
+export type TransientReason = 'lock_timeout' | 'deadlock';
+
 export class TransientInfrastructureError extends InfrastructureError {
   readonly retryable = true;
+  readonly reason?: TransientReason;
+
+  constructor(message: string, options?: ErrorOptions & { reason?: TransientReason }) {
+    super(message, options);
+    this.reason = options?.reason;
+  }
 }
 
 export class PermanentInfrastructureError extends InfrastructureError {

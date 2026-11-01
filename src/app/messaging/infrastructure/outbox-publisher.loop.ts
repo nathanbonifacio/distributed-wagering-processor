@@ -1,4 +1,5 @@
 import { type BeforeApplicationShutdown, Logger, type OnApplicationBootstrap } from '@nestjs/common';
+import type { AppMetrics } from '../../../shared/observability/app-metrics';
 import type { PublishOutboxBatch } from '../application/publish-outbox-batch.use-case';
 
 /** Lote cheio: pode haver mais, e segue sem esperar. Caso contrário, espera o intervalo. */
@@ -12,6 +13,7 @@ export class OutboxPublisherLoop implements OnApplicationBootstrap, BeforeApplic
     private readonly publishBatch: PublishOutboxBatch,
     private readonly batchSize: number,
     private readonly pollIntervalMs: number,
+    private readonly metrics?: AppMetrics,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -28,16 +30,25 @@ export class OutboxPublisherLoop implements OnApplicationBootstrap, BeforeApplic
   private async tick(): Promise<void> {
     let delay = this.pollIntervalMs;
     try {
-      const { claimed } = await this.publishBatch.execute();
+      const { claimed, published, failed } = await this.publishBatch.execute();
       if (claimed === this.batchSize) delay = 0;
+      if (claimed > 0) this.report(claimed, published, failed);
     } catch (error) {
       // Banco fora do ar não derruba o worker. Só o nome do erro: a mensagem pode trazer SQL.
-      this.logger.warn(`falha ao publicar a outbox: ${error instanceof Error ? error.name : typeof error}`);
+      this.logger.warn({ msg: 'failed to publish the outbox', error: error instanceof Error ? error.name : typeof error });
     }
     if (!this.stopped) {
       this.timer = setTimeout(() => {
         this.running = this.tick();
       }, delay);
     }
+  }
+
+  private report(claimed: number, published: number, failed: number): void {
+    this.metrics?.outboxPublished.inc(published);
+    if (failed > 0) this.metrics?.retries.inc({ kind: 'outbox_publish' }, failed);
+    const entry = { msg: 'outbox batch handled', claimed, published, failed };
+    if (failed > 0) this.logger.warn(entry);
+    else this.logger.log(entry);
   }
 }

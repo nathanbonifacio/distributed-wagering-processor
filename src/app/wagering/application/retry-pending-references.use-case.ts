@@ -1,4 +1,5 @@
 import type { Clock } from '../../../shared/application/clock.port';
+import { runWithContext } from '../../../shared/application/request-context';
 import type { UnitOfWork } from '../../../shared/application/unit-of-work.port';
 import type { WageringPersistence } from './ports/wagering-persistence.port';
 import type { ProcessWagerTransaction } from './process-wager-transaction.use-case';
@@ -30,7 +31,8 @@ export class RetryPendingReferences {
     for (const id of ids) {
       if (shouldStop()) break;
       try {
-        await this.processWager.resumePending(id);
+        // A transação é o fio condutor da tentativa: logs e eventos dela compartilham o mesmo correlationId.
+        await runWithContext({ correlationId: id, transactionId: id }, () => this.processWager.resumePending(id));
       } catch (error) {
         failures.push(error instanceof Error ? error.name : typeof error);
       }

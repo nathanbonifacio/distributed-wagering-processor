@@ -6,6 +6,7 @@ import { WagerConsumerModule } from './app/wagering/infrastructure/wager-consume
 import { WageringModule } from './app/wagering/wagering.module';
 import { PersistenceModule } from './persistence.module';
 import { ConfigModule } from './shared/infrastructure/config.module';
+import { ObservabilityModule } from './shared/observability/observability.module';
 
 /** Expõe health, consome a fila de entrada, publica a outbox e retoma as referências pendentes. */
 @Module({})
@@ -16,6 +17,7 @@ export class WorkerModule {
       module: WorkerModule,
       imports: [
         ConfigModule.register(env),
+        ObservabilityModule,
         PersistenceModule,
         WageringModule,
         WagerConsumerModule,

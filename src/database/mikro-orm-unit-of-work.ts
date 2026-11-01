@@ -1,4 +1,5 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
+import { TransientInfrastructureError, type TransientReason } from '../shared/application/infrastructure-error';
 import type { UnitOfWork } from '../shared/application/unit-of-work.port';
 import { translatePersistenceError } from './persistence-error';
 
@@ -11,6 +12,8 @@ export class MikroOrmUnitOfWork<TContext> implements UnitOfWork<TContext> {
     private readonly orm: MikroORM,
     private readonly createContext: (em: EntityManager) => TContext,
     private readonly lockTimeoutMs: number,
+    /** Chamado quando uma transação falha por disputa de lock (timeout ou deadlock). Nunca altera o erro. */
+    private readonly onConcurrencyFailure?: (reason: TransientReason) => void,
   ) {}
 
   async run<T>(work: (context: TContext) => Promise<T>): Promise<T> {
@@ -21,7 +24,9 @@ export class MikroOrmUnitOfWork<TContext> implements UnitOfWork<TContext> {
         return work(this.createContext(em));
       });
     } catch (error) {
-      throw translatePersistenceError(error);
+      const translated = translatePersistenceError(error);
+      if (translated instanceof TransientInfrastructureError && translated.reason) this.onConcurrencyFailure?.(translated.reason);
+      throw translated;
     }
   }
 }

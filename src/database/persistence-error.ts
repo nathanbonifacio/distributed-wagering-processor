@@ -31,7 +31,8 @@ export function translatePersistenceError(error: unknown): unknown {
     (code !== undefined && (TRANSIENT_SQLSTATES.has(code) || TRANSIENT_NETWORK_CODES.has(code) || code.startsWith('08'))) ||
     TRANSIENT_DRIVER_MESSAGES.test(message ?? '');
   if (transient) {
-    return new TransientInfrastructureError(`falha transitória de banco (${code ?? 'conexão'})`, { cause: error });
+    const reason = code === '55P03' ? 'lock_timeout' : code === '40P01' ? 'deadlock' : undefined;
+    return new TransientInfrastructureError(`falha transitória de banco (${code ?? 'conexão'})`, { cause: error, reason });
   }
   return error;
 }

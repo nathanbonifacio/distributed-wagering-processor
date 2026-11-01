@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Logger, Module } from '@nestjs/common';
 import { type EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import { InboxMessageSchema } from './app/messaging/infrastructure/persistence/inbox-message.schema';
 import { MikroOrmInboxRepository } from './app/messaging/infrastructure/persistence/mikro-orm-inbox.repository';
@@ -15,6 +15,7 @@ import { DatabaseModule } from './database/database.module';
 import { MikroOrmUnitOfWork } from './database/mikro-orm-unit-of-work';
 import { UNIT_OF_WORK } from './shared/application/unit-of-work.port';
 import { APP_CONFIG, type AppConfig } from './shared/infrastructure/config.module';
+import { AppMetrics } from './shared/observability/app-metrics';
 
 export const PERSISTENCE_SCHEMAS = [
   WalletSchema,
@@ -44,9 +45,14 @@ export function createPersistenceContext(em: EntityManager): WageringPersistence
   providers: [
     {
       provide: UNIT_OF_WORK,
-      inject: [MikroORM, APP_CONFIG],
-      useFactory: (orm: MikroORM, config: AppConfig) =>
-        new MikroOrmUnitOfWork(orm, createPersistenceContext, config.DB_LOCK_TIMEOUT_MS),
+      inject: [MikroORM, APP_CONFIG, { token: AppMetrics, optional: true }],
+      useFactory: (orm: MikroORM, config: AppConfig, metrics?: AppMetrics) => {
+        const logger = new Logger('Concurrency');
+        return new MikroOrmUnitOfWork(orm, createPersistenceContext, config.DB_LOCK_TIMEOUT_MS, (reason) => {
+          metrics?.lockConflicts.inc({ type: reason });
+          logger.warn({ msg: 'transaction failed on a lock conflict', reason });
+        });
+      },
     },
   ],
   exports: [UNIT_OF_WORK],

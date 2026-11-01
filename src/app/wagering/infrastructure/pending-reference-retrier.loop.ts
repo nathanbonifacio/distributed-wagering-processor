@@ -32,10 +32,10 @@ export class PendingReferenceRetrierLoop implements OnApplicationBootstrap, Befo
     let delay = this.pollIntervalMs;
     try {
       const { claimed, failed, failures } = await this.retryPending.execute(() => this.stopped);
-      if (failed > 0) this.logger.warn(`failed to retry ${failed} pending transactions: ${[...new Set(failures)].join(', ')}`);
+      if (failed > 0) this.logger.warn({ msg: 'failed to retry pending transactions', claimed, failed, errors: [...new Set(failures)] });
       else if (claimed === this.batchSize) delay = 0;
     } catch (error) {
-      this.logger.warn(`failed to load pending transactions: ${error instanceof Error ? error.name : typeof error}`);
+      this.logger.warn({ msg: 'failed to load pending transactions', error: error instanceof Error ? error.name : typeof error });
     }
     if (!this.stopped) {
       this.timer = setTimeout(() => {
