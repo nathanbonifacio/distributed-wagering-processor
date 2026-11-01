@@ -35,13 +35,13 @@ export class Money {
 
   static from(props: MoneyProps): Money {
     if (props === null || typeof props !== 'object') {
-      throw new InvalidMoneyError('Money.from espera um objeto { amount, currency }');
+      throw new InvalidMoneyError('Money.from expects an object { amount, currency }');
     }
     const { amount, currency } = props;
     Money.assertCurrency(currency);
     if (typeof amount !== 'string' || !AMOUNT_PATTERN.test(amount)) {
       throw new InvalidMoneyError(
-        'amount inválido: use string decimal não negativa com exatamente 2 casas (ex.: "25.00")',
+        'invalid amount: use a non-negative decimal string with exactly 2 decimal places (e.g. "25.00")',
       );
     }
     return new Money(new D(amount), currency);
@@ -97,20 +97,20 @@ export class Money {
 
   private static of(value: Dec, currency: string): Money {
     if (value.abs().gte(LIMIT)) {
-      throw new MoneyOverflowError('valor excede o limite de 18 dígitos inteiros');
+      throw new MoneyOverflowError('value exceeds the limit of 18 integer digits');
     }
     return new Money(value.isZero() ? new D(0) : value, currency);
   }
 
   private static assertCurrency(currency: unknown): asserts currency is string {
     if (typeof currency !== 'string' || !CURRENCY_PATTERN.test(currency)) {
-      throw new InvalidMoneyError('currency inválida: use código ISO-4217 de 3 letras maiúsculas (ex.: "BRL")');
+      throw new InvalidMoneyError('invalid currency: use a 3-letter uppercase ISO-4217 code (e.g. "BRL")');
     }
   }
 
   private assertSameCurrency(other: Money): void {
     if (this.currency !== other.currency) {
-      throw new CurrencyMismatchError(`moedas diferentes: ${this.currency} e ${other.currency}`);
+      throw new CurrencyMismatchError(`different currencies: ${this.currency} and ${other.currency}`);
     }
   }
 }

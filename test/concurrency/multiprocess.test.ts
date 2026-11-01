@@ -403,7 +403,8 @@ describe('a worker that dies, or is told to stop, in the middle of a message', (
     await assertFinancialInvariants(db, wallet.id);
   }, 120_000);
 
-  test('SIGTERM during a message lets it finish, acknowledges it and exits cleanly', async () => {
+  // Windows has no catchable SIGTERM: the process dies at once, so these two only prove anything on POSIX.
+  test.skipIf(process.platform === 'win32')('SIGTERM during a message lets it finish, acknowledges it and exits cleanly', async () => {
     await createQueues(10);
     const api = await launch('api');
     const worker = await launch('worker', { DB_LOCK_TIMEOUT_MS: '20000', SQS_CONSUMER_SHUTDOWN_TIMEOUT_MS: '20000' });
@@ -429,7 +430,7 @@ describe('a worker that dies, or is told to stop, in the middle of a message', (
     await assertFinancialInvariants(db, wallet.id);
   }, 120_000);
 
-  test('SIGTERM with a message stuck past the shutdown deadline: it returns to the queue at once, and another process applies it once', async () => {
+  test.skipIf(process.platform === 'win32')('SIGTERM with a message stuck past the shutdown deadline: it returns to the queue at once, and another process applies it once', async () => {
     // A long visibility timeout proves the message came back because the worker returned it, not because time passed.
     await createQueues(120);
     const api = await launch('api');

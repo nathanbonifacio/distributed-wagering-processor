@@ -23,7 +23,7 @@ import { createTestDatabase, type TestDatabase } from '../support/test-database'
 
 // Pré-requisito: `docker compose up -d postgres localstack`. PostgreSQL e SQS reais: cada teste tem o próprio
 // banco e a própria fila. Os testes de "queda" interrompem o fluxo no ponto exato, no mesmo processo; a
-// queda de processos reais é da Etapa 13.
+// queda de processos reais está em test/concurrency/multiprocess.test.ts.
 const LEASE_MS = 30_000;
 const TIMEOUT = 30_000;
 const env = testEnv();
@@ -118,8 +118,8 @@ async function newEventTypes(before: Set<string>) {
   return (await rows()).filter((r: any) => !before.has(r.id)).map((r: any) => r.event_type).sort();
 }
 
-describe('eventos gravados na transação financeira', () => {
-  test('cada operação grava exatamente os eventos do README', async () => {
+describe('events written in the financial transaction', () => {
+  test('each operation writes exactly the README events', async () => {
     const P = 'WagerTransactionProcessed';
     const B = 'WalletBalanceChanged';
     const emitted = async (action: () => Promise<{ status: number }>, status: number) => {
@@ -150,7 +150,7 @@ describe('eventos gravados na transação financeira', () => {
     await assertFinancialInvariants(db, wallet.id);
   }, TIMEOUT);
 
-  test('sem publicação antes do commit: o publisher não enxerga nada, e só publica depois de confirmar', async () => {
+  test('no publication before commit: the publisher sees nothing, and only publishes after the commit', async () => {
     const wallet = await openWallet();
     await batch().execute();
     await receive(2);
@@ -187,7 +187,7 @@ describe('eventos gravados na transação financeira', () => {
     expect(await receive(2)).toHaveLength(2);
   }, TIMEOUT);
 
-  test('rollback não deixa evento órfão, e nada é publicado', async () => {
+  test('a rollback leaves no orphan event, and nothing is published', async () => {
     const wallet = await openWallet();
     await batch().execute();
     await receive(2);
@@ -198,7 +198,7 @@ describe('eventos gravados na transação financeira', () => {
         outbox: Object.assign(Object.create(real.outbox) as OutboxRepository, {
           enqueue: async (record: any) => {
             await real.outbox.enqueue(record);
-            if (record.eventType === 'WalletBalanceChanged') throw new Error('falha injetada');
+            if (record.eventType === 'WalletBalanceChanged') throw new Error('injected failure');
           },
         }),
       };
@@ -215,8 +215,8 @@ describe('eventos gravados na transação financeira', () => {
   }, TIMEOUT);
 });
 
-describe('publicação', () => {
-  test('publica no SQS o envelope do README e só então marca como publicado', async () => {
+describe('publication', () => {
+  test('publishes the README envelope to SQS and only then marks it as published', async () => {
     const wallet = await openWallet();
     const before = await rows();
     expect(before.every((r: any) => r.published_at === null)).toBe(true);
@@ -238,7 +238,7 @@ describe('publicação', () => {
     expect(await receive(0)).toHaveLength(0);
   }, TIMEOUT);
 
-  test('o transporte recusou (fila inexistente): nada se perde, e a tentativa fica registrada com backoff', async () => {
+  test('the transport refused (queue does not exist): nothing is lost, and the attempt is recorded with backoff', async () => {
     const wallet = await openWallet();
     expect(await batch(realPublisher('fila-que-nao-existe')).execute()).toEqual({ claimed: 2, published: 0, failed: 2 });
     for (const row of await rows()) {
@@ -257,7 +257,7 @@ describe('publicação', () => {
     expect(await pendingCount()).toBe(0);
   }, TIMEOUT);
 
-  test('last_error guarda só o nome do erro, sem o que a mensagem possa expor', async () => {
+  test('last_error keeps only the error name, without what the message might expose', async () => {
     await openWallet();
     class TransportError extends Error {
       override name = 'TransportError';
@@ -266,7 +266,7 @@ describe('publicação', () => {
     for (const row of await rows()) expect(row.last_error).toBe('TransportError');
   }, TIMEOUT);
 
-  test('SQS inacessível: a API segue confirmando transações, sem perder eventos, e o saldo não muda', async () => {
+  test('SQS unreachable: the API keeps confirming transactions, without losing events, and the balance does not change', async () => {
     const wallet = await openWallet();
     const down = new SQSClient({ region: env.AWS_REGION, endpoint: 'http://127.0.0.1:1', credentials: { accessKeyId: 'x', secretAccessKey: 'x' }, maxAttempts: 1 });
 
@@ -284,7 +284,7 @@ describe('publicação', () => {
     expect(new Set((await receive(4)).map((b) => b.eventId)).size).toBe(4);
   }, TIMEOUT);
 
-  test('fila FIFO: grupo por agregado e deduplicação pelo eventId', async () => {
+  test('FIFO queue: group per aggregate and deduplication by eventId', async () => {
     const name = `outbox-test-${randomUUID()}.fifo`;
     const url = (await sqs.send(new CreateQueueCommand({ QueueName: name, Attributes: { FifoQueue: 'true' } }))).QueueUrl!;
     extraQueues.push(url);
@@ -309,8 +309,8 @@ describe('publicação', () => {
   }, TIMEOUT);
 });
 
-describe('recuperação depois de queda', () => {
-  test('caiu antes de publicar: a reserva impede repetição imediata e, ao vencer, outra instância publica', async () => {
+describe('recovery after a crash', () => {
+  test('crashed before publishing: the reservation prevents an immediate repeat and, once it expires, another instance publishes', async () => {
     await openWallet();
     const now = new Date();
     const claimed = await uow().run((c) => c.outbox.claimDue(now, 10, new Date(now.getTime() + LEASE_MS)));
@@ -325,7 +325,7 @@ describe('recuperação depois de queda', () => {
     expect((await receive(2)).map((b) => b.eventId).sort()).toEqual(claimed.map((m) => m.id).sort());
   }, TIMEOUT);
 
-  test('caiu entre o SQS e o PostgreSQL: publica de novo, com o mesmo eventId', async () => {
+  test('crashed between SQS and PostgreSQL: publishes again, with the same eventId', async () => {
     await openWallet();
     // A confirmação no banco falha depois de o SQS já ter aceitado: é o que a queda faria.
     const crashing = new MikroOrmUnitOfWork<{ outbox: OutboxRepository }>(db.orm, (em) => {
@@ -348,7 +348,7 @@ describe('recuperação depois de queda', () => {
     expect(await pendingCount()).toBe(0);
   }, TIMEOUT);
 
-  test('uma tentativa atrasada que falhou não reabre o evento já publicado por outra', async () => {
+  test('a late attempt that failed does not reopen the event already published by another', async () => {
     await openWallet();
     const now = new Date();
     const stale = await uow().run((c) => c.outbox.claimDue(now, 10, new Date(now.getTime() + 1)));
@@ -361,7 +361,7 @@ describe('recuperação depois de queda', () => {
     expect((await batch(realPublisher(), { clock: later(60_000) }).execute()).claimed).toBe(0);
   }, TIMEOUT);
 
-  test('worker real: publica os pendentes ao subir, e os novos enquanto roda; encerra normalmente', async () => {
+  test('real worker: publishes the pending ones on startup, and the new ones while it runs; shuts down normally', async () => {
     const wallet = await openWallet();
     await submit(payload(wallet, 'BET'));
     const start = async (): Promise<INestApplicationContext> => {
@@ -398,14 +398,14 @@ describe('recuperação depois de queda', () => {
   }, TIMEOUT);
 });
 
-describe('publishers concorrentes', () => {
+describe('concurrent publishers', () => {
   /** Publisher real que registra quem publicou o quê. */
   const recording = (seen: string[]): MessagePublisher => {
     const real = realPublisher();
     return { publish: async (message) => { await real.publish(message); seen.push(message.id); } };
   };
 
-  test('três publishers, cada um com a própria conexão: todos os eventos, sem repetição', async () => {
+  test('three publishers, each with its own connection: every event, without repetition', async () => {
     for (let i = 0; i < 12; i++) await openWallet();
     const total = (await rows()).length;
     const seen: string[][] = [[], [], []];
@@ -434,7 +434,7 @@ describe('publishers concorrentes', () => {
     return { unitOfWork: new MikroOrmUnitOfWork<WageringPersistence>(orm, createPersistenceContext, 5000), close: () => orm.close(true) };
   }
 
-  test('SKIP LOCKED: linhas travadas por outro publisher são puladas na hora, sem espera', async () => {
+  test('SKIP LOCKED: rows locked by another publisher are skipped at once, without waiting', async () => {
     await openWallet();
     await openWallet();
     let release!: () => void;
@@ -459,7 +459,7 @@ describe('publishers concorrentes', () => {
     await other;
   }, TIMEOUT);
 
-  test('eventos de wallets diferentes não se bloqueiam, e a operação financeira não espera o publisher', async () => {
+  test('events of different wallets do not block each other, and the financial operation does not wait for the publisher', async () => {
     const wallet = await openWallet();
     let release!: () => void;
     const released = new Promise<void>((resolve) => { release = resolve; });

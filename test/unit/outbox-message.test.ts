@@ -9,7 +9,7 @@ function newMessage() {
 }
 
 describe('OutboxMessage', () => {
-  test('enqueue: pendente, vencida, com o eventId como id e o envelope no payload', () => {
+  test('enqueue: pending, due, with the eventId as id and the envelope in the payload', () => {
     const message = newMessage();
     expect(message.id).toBe('event-1');
     expect(message.eventType).toBe('WalletBalanceChanged');
@@ -19,7 +19,7 @@ describe('OutboxMessage', () => {
     expect(message.isDue(T0)).toBe(true);
   });
 
-  test('isDue respeita o horário e deixa de valer depois de publicada', () => {
+  test('isDue respects the schedule and stops holding once published', () => {
     const message = newMessage();
     expect(message.isDue(new Date(T0.getTime() - 1))).toBe(false);
     message.markPublished(T1);
@@ -28,7 +28,7 @@ describe('OutboxMessage', () => {
     expect(message.publishedAt).toEqual(T1);
   });
 
-  test('backoff dobra até 5 minutos, conta tentativas e guarda o último erro', () => {
+  test('backoff doubles up to 5 minutes, counts attempts and keeps the last error', () => {
     const message = newMessage();
     const delays: number[] = [];
     for (let i = 0; i < 12; i++) {
@@ -42,17 +42,67 @@ describe('OutboxMessage', () => {
     expect(message.isPending()).toBe(true);
   });
 
-  test('publicada é terminal', () => {
+  test('published is terminal', () => {
     const message = newMessage();
     message.markPublished(T1);
     expect(() => message.markPublished(T1)).toThrow(InvalidOutboxTransitionError);
     expect(() => message.scheduleRetry(T1)).toThrow(InvalidOutboxTransitionError);
   });
 
-  test('rehydrate reconstrói o estado sem revalidar', () => {
+  describe('settling a reservation', () => {
+    const reserved = (attempts = 0) =>
+      OutboxMessage.rehydrate({ id: 'x', aggregateId: 'a', eventType: 'E', payload: {}, occurredAt: T0, attempts, nextAttemptAt: T1 });
+
+    test('the current reservation reschedules with backoff over the stored attempts', () => {
+      const message = reserved(2);
+      message.registerFailure(T1, T1, 'TimeoutError');
+      expect(message.attempts).toBe(3);
+      expect(message.nextAttemptAt).toEqual(new Date(T1.getTime() + 4000));
+      expect(message.lastError).toBe('TimeoutError');
+    });
+
+    test('a replaced reservation counts the failure and keeps the schedule', () => {
+      const message = reserved(2);
+      message.registerFailure(T0, T1, 'TimeoutError');
+      expect(message.attempts).toBe(3);
+      expect(message.nextAttemptAt).toEqual(T1);
+      expect(message.lastError).toBe('TimeoutError');
+    });
+
+    test('nothing changes once published, and the first publication date stays', () => {
+      const message = reserved();
+      message.confirmPublished(T0);
+      message.confirmPublished(T1);
+      message.registerFailure(T1, T1, 'TimeoutError');
+      expect(message.publishedAt).toEqual(T0);
+      expect(message.attempts).toBe(0);
+      expect(message.lastError).toBeUndefined();
+    });
+  });
+
+  test('rehydrate rebuilds the state without revalidating', () => {
     const message = OutboxMessage.rehydrate({ id: 'x', aggregateId: 'a', eventType: 'E', payload: {}, occurredAt: T0, attempts: 3, nextAttemptAt: T1, publishedAt: T1, lastError: 'e' });
     expect(message.attempts).toBe(3);
     expect(message.isPending()).toBe(false);
     expect(message.lastError).toBe('e');
+  });
+});
+
+describe('persisted state', () => {
+  test('rehydrate remembers what the row held, and later changes do not alter it', () => {
+    const message = OutboxMessage.rehydrate({ id: 'x', aggregateId: 'a', eventType: 'E', payload: {}, occurredAt: T0, attempts: 2, nextAttemptAt: T1 });
+    message.scheduleRetry(T1, 'TimeoutError');
+    expect(message.attempts).toBe(3);
+    expect(message.persistedState).toEqual({ attempts: 2, nextAttemptAt: T1 });
+  });
+
+  test('the exposed baseline cannot be used to change it', () => {
+    const message = OutboxMessage.rehydrate({ id: 'x', aggregateId: 'a', eventType: 'E', payload: {}, occurredAt: T0, attempts: 0, nextAttemptAt: T1 });
+    message.persistedState!.nextAttemptAt.setTime(0);
+    expect(message.persistedState!.nextAttemptAt).toEqual(T1);
+  });
+
+  test('a message born from enqueue has no baseline: it was never read from the table', () => {
+    expect(newMessage().persistedState).toBeUndefined();
   });
 });

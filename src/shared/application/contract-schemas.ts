@@ -6,7 +6,7 @@ export const identifierSchema = z
   .string()
   .min(1)
   .max(255)
-  .regex(/^[^\u0000-\u001f\u007f]+$/, 'não pode conter caracteres de controle');
+  .regex(/^[^\u0000-\u001f\u007f]+$/, 'must not contain control characters');
 
 /** O PostgreSQL guarda uuid em minúsculas; sem normalizar, a mesma entidade divergiria na comparação e no hash. */
 export const uuidSchema = z.uuid().transform((value) => value.toLowerCase());

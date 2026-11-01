@@ -1,7 +1,21 @@
 import { type EntityManager, LockMode } from '@mikro-orm/postgresql';
 import type { OutboxRecord, OutboxRepository } from '../../application/ports/outbox.repository.port';
 import { OutboxMessage } from '../../domain/outbox-message';
-import { OutboxMessageSchema } from './outbox-message.schema';
+import { type OutboxMessageRow, OutboxMessageSchema } from './outbox-message.schema';
+
+function toDomain(row: OutboxMessageRow): OutboxMessage {
+  return OutboxMessage.rehydrate({
+    id: row.id,
+    aggregateId: row.aggregateId,
+    eventType: row.eventType,
+    payload: row.payload,
+    occurredAt: row.occurredAt,
+    attempts: row.attempts ?? 0,
+    nextAttemptAt: row.nextAttemptAt,
+    publishedAt: row.publishedAt ?? undefined,
+    lastError: row.lastError ?? undefined,
+  });
+}
 
 export class MikroOrmOutboxRepository implements OutboxRepository {
   constructor(private readonly em: EntityManager) {}
@@ -23,25 +37,25 @@ export class MikroOrmOutboxRepository implements OutboxRepository {
     );
     if (rows.length === 0) return [];
     await this.em.nativeUpdate(OutboxMessageSchema, { id: { $in: rows.map((row) => row.id) } }, { nextAttemptAt: leaseUntil });
-    return rows.map((row) =>
-      OutboxMessage.rehydrate({
-        id: row.id,
-        aggregateId: row.aggregateId,
-        eventType: row.eventType,
-        payload: row.payload,
-        occurredAt: row.occurredAt,
-        attempts: row.attempts ?? 0,
-        nextAttemptAt: leaseUntil,
-        lastError: row.lastError ?? undefined,
-      }),
-    );
+    return rows.map((row) => toDomain({ ...row, nextAttemptAt: leaseUntil }));
   }
 
-  /** `publishedAt: null` no filtro: uma tentativa atrasada que falhou não reabre o que outra já publicou. */
-  async save(message: OutboxMessage): Promise<void> {
-    await this.em.nativeUpdate(
+  async lockByIds(ids: string[]): Promise<OutboxMessage[]> {
+    const rows = await this.em.find(
       OutboxMessageSchema,
-      { id: message.id, publishedAt: null },
+      { id: { $in: ids } },
+      { lockMode: LockMode.PESSIMISTIC_WRITE, orderBy: { id: 'asc' }, disableIdentityMap: true },
+    );
+    return rows.map(toDomain);
+  }
+
+  /** O filtro é a garantia: sem `publishedAt`, `attempts` e `nextAttemptAt` iguais ao que foi lido, nada é gravado. */
+  async save(message: OutboxMessage): Promise<boolean> {
+    const loaded = message.persistedState;
+    if (!loaded) throw new Error(`outbox message ${message.id} was never loaded from the table`);
+    const updated = await this.em.nativeUpdate(
+      OutboxMessageSchema,
+      { id: message.id, publishedAt: null, attempts: loaded.attempts, nextAttemptAt: loaded.nextAttemptAt },
       {
         attempts: message.attempts,
         nextAttemptAt: message.nextAttemptAt,
@@ -49,5 +63,6 @@ export class MikroOrmOutboxRepository implements OutboxRepository {
         lastError: message.lastError ?? null,
       },
     );
+    return updated === 1;
   }
 }

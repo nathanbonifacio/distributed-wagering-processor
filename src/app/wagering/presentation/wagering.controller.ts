@@ -60,7 +60,7 @@ function transactionResponse(transaction: WagerTransaction) {
 }
 
 const found = (transaction: WagerTransaction | undefined) => {
-  if (!transaction) throw new NotFoundException({ code: 'TRANSACTION_NOT_FOUND', message: 'transação não encontrada' });
+  if (!transaction) throw new NotFoundException({ code: 'TRANSACTION_NOT_FOUND', message: 'transaction not found' });
   return transactionResponse(transaction);
 };
 

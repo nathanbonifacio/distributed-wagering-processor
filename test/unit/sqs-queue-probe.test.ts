@@ -18,12 +18,12 @@ class FakeSqs {
 }
 const asSqs = (fake: FakeSqs) => fake as unknown as SQSClient;
 
-test('o nome da probe é o informado (aparece como chave no relatório)', () => {
+test('the probe name is the one given (it appears as a key in the report)', () => {
   const probe = new SqsQueueProbe('sqsEvents', 'wager-events', asSqs(new FakeSqs()));
   expect(probe.name).toBe('sqsEvents');
 });
 
-test('verifica a fila só com leituras de metadados: GetQueueUrl e GetQueueAttributes', async () => {
+test('checks the queue with metadata reads only: GetQueueUrl and GetQueueAttributes', async () => {
   const fake = new FakeSqs();
   await new SqsQueueProbe('sqsEvents', 'wager-events', asSqs(fake)).check(new AbortController().signal);
 
@@ -34,19 +34,19 @@ test('verifica a fila só com leituras de metadados: GetQueueUrl e GetQueueAttri
   expect(fake.commands.some((c) => /Send|Receive|Delete|Purge/.test(c.name))).toBe(false);
 });
 
-test('repassa o AbortSignal para cada chamada ao SDK (cancelamento no prazo)', async () => {
+test('passes the AbortSignal to every SDK call (cancellation on deadline)', async () => {
   const fake = new FakeSqs();
   const controller = new AbortController();
   await new SqsQueueProbe('sqs', 'wager-transactions.fifo', asSqs(fake)).check(controller.signal);
   expect(fake.commands.every((c) => c.signal === controller.signal)).toBe(true);
 });
 
-test('rejeita quando a fila não existe (GetQueueUrl falha)', async () => {
+test('rejects when the queue does not exist (GetQueueUrl fails)', async () => {
   const probe = new SqsQueueProbe('sqsEvents', 'wager-events', asSqs(new FakeSqs('GetQueueUrlCommand')));
   await expect(probe.check(new AbortController().signal)).rejects.toThrow('GetQueueUrlCommand failed');
 });
 
-test('rejeita quando a fila existe mas os atributos não são legíveis', async () => {
+test('rejects when the queue exists but its attributes are not readable', async () => {
   const probe = new SqsQueueProbe('sqsEvents', 'wager-events', asSqs(new FakeSqs('GetQueueAttributesCommand')));
   await expect(probe.check(new AbortController().signal)).rejects.toThrow('GetQueueAttributesCommand failed');
 });

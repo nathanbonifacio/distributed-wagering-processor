@@ -11,14 +11,14 @@ const service = (probes: DependencyProbe[], timeoutMs = 100) =>
 
 afterEach(() => { spyOn(Logger.prototype, 'warn').mockRestore(); });
 
-test('ok quando todas as dependências respondem', async () => {
+test('ok when every dependency responds', async () => {
   const report = await service([probe('a', async () => {}), probe('b', async () => {})]).checkReadiness();
   expect(report.status).toBe('ok');
   expect(report.checks.a!.status).toBe('up');
   expect(report.checks.b!.status).toBe('up');
 });
 
-test('unavailable quando uma dependência rejeita, e as demais continuam reportadas', async () => {
+test('unavailable when one dependency rejects, and the others are still reported', async () => {
   spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
   const report = await service([
     probe('a', async () => {}),
@@ -29,7 +29,7 @@ test('unavailable quando uma dependência rejeita, e as demais continuam reporta
   expect(report.checks.b).toMatchObject({ status: 'down', reason: 'unavailable' });
 });
 
-test('dependência que trava estoura o prazo, aborta o signal e reporta reason=timeout', async () => {
+test('a dependency that hangs hits the deadline, aborts the signal and reports reason=timeout', async () => {
   spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
   let aborted = false;
   const hanging = probe('slow', (signal) => new Promise<void>(() => {
@@ -43,14 +43,14 @@ test('dependência que trava estoura o prazo, aborta o signal e reporta reason=t
   expect(aborted).toBe(true);
 });
 
-test('as verificações rodam em paralelo (tempo total ~ o da mais lenta)', async () => {
+test('the checks run in parallel (total time ~ that of the slowest)', async () => {
   const wait = (ms: number) => probe(`w${ms}`, () => Bun.sleep(ms));
   const started = performance.now();
   await service([wait(150), wait(150), wait(150)], 1000).checkReadiness();
   expect(performance.now() - started).toBeLessThan(400);
 });
 
-test('a resposta pública não vaza a mensagem do erro interno nem credenciais', async () => {
+test('the public response does not leak the internal error message or credentials', async () => {
   spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
   const report = await service([
     probe('db', async () => { throw new Error('connect ECONNREFUSED 10.0.0.5:5432 postgres://app:s3cret@db.internal/prod'); }),
@@ -61,7 +61,7 @@ test('a resposta pública não vaza a mensagem do erro interno nem credenciais',
   }
 });
 
-test('o diagnóstico vai para o log interno, com a URL redigida', async () => {
+test('the diagnosis goes to the internal log, with the URL redacted', async () => {
   const warn = spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
   await service([
     probe('db', async () => { throw new Error('connect ECONNREFUSED postgres://app:s3cret@db.internal/prod'); }),
@@ -73,7 +73,7 @@ test('o diagnóstico vai para o log interno, com a URL redigida', async () => {
   expect(logged).not.toContain('s3cret');
 });
 
-test('chamadas concorrentes compartilham uma única verificação em andamento (sem acúmulo)', async () => {
+test('concurrent calls share a single check in flight (no pile-up)', async () => {
   let calls = 0;
   const slow = probe('slow', async () => { calls++; await Bun.sleep(80); });
   const svc = service([slow], 1000);
@@ -85,6 +85,6 @@ test('chamadas concorrentes compartilham uma única verificação em andamento (
   expect(calls).toBe(2);
 });
 
-test('withTimeout devolve o valor quando o trabalho termina no prazo', async () => {
+test('withTimeout returns the value when the work finishes in time', async () => {
   expect(await withTimeout(async () => 42, 100)).toBe(42);
 });

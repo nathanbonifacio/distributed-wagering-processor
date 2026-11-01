@@ -45,7 +45,7 @@ export class OpenWallet {
       });
     } catch (error) {
       if (error instanceof PersistenceConstraintError && error.constraint === WALLET_UNIQUE_CONSTRAINT) {
-        throw new WalletAlreadyExistsError('já existe wallet para este player e moeda');
+        throw new WalletAlreadyExistsError('a wallet already exists for this player and currency');
       }
       throw error;
     }

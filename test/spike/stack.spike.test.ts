@@ -43,7 +43,7 @@ beforeEach(async () => {
 });
 afterEach(async () => { await db.drop(); });
 
-test('Nest: DI por tipo (emitDecoratorMetadata) e HTTP funcionam sob Bun', async () => {
+test('Nest: DI by type (emitDecoratorMetadata) and HTTP work under Bun', async () => {
   const app = await NestFactory.create(SpikeModule, { logger: false });
   await app.listen(0);
   const url = await app.getUrl();
@@ -52,7 +52,7 @@ test('Nest: DI por tipo (emitDecoratorMetadata) e HTTP funcionam sob Bun', async
   expect(body).toEqual({ dep: 'ok', typed: 'ok' });
 });
 
-test('MikroORM: migration up/down/up programática com migrationsList', async () => {
+test('MikroORM: programmatic migration up/down/up with migrationsList', async () => {
   const m = orm.migrator;
   await m.up();
   await m.down();
@@ -63,7 +63,7 @@ test('MikroORM: migration up/down/up programática com migrationsList', async ()
   expect(there[0]!.t).toBe('spike_wallets');
 });
 
-test('MikroORM: FOR UPDATE serializa duas transações na mesma linha (numeric volta como string)', async () => {
+test('MikroORM: FOR UPDATE serializes two transactions on the same row (numeric comes back as a string)', async () => {
   await orm.migrator.up();
   const id = crypto.randomUUID();
   await orm.em.fork().getConnection().execute(`insert into spike_wallets values ('${id}', '100.00', 1)`);

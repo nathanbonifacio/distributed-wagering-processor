@@ -48,7 +48,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const parsed = schema.safeParse(env);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
-    throw new Error(`Configuração inválida: ${issues}`);
+    throw new Error(`Invalid configuration: ${issues}`);
   }
   return parsed.data;
 }

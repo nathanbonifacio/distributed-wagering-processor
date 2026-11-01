@@ -38,6 +38,6 @@ export class PersistenceConstraintError extends PermanentInfrastructureError {
     readonly constraint: string | undefined,
     options?: ErrorOptions,
   ) {
-    super(`restrição do banco violada: ${constraint ?? 'desconhecida'}`, options);
+    super(`database constraint violated: ${constraint ?? 'unknown'}`, options);
   }
 }

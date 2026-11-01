@@ -7,7 +7,7 @@ export function parseRequest<S extends z.ZodType>(schema: S, value: unknown): z.
   if (result.success) return result.data;
   throw new BadRequestException({
     code: 'INVALID_PAYLOAD',
-    message: 'requisição inválida',
+    message: 'invalid request',
     issues: result.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
   });
 }

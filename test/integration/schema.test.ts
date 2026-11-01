@@ -103,40 +103,40 @@ async function expectViolation(action: () => Promise<unknown>, expected: string)
 }
 
 describe('wallets', () => {
-  test('uma linha válida é aceita (as demais falham só pelo campo atacado)', async () => {
+  test('a valid row is accepted (the others fail only because of the attacked field)', async () => {
     await wallet();
   });
 
-  test('saldo negativo', async () => {
+  test('negative balance', async () => {
     await expectViolation(() => wallet({ balance: '-0.01' }), 'wallets_balance_non_negative');
   });
 
-  test('saldo zero é aceito', async () => {
+  test('a zero balance is accepted', async () => {
     await wallet({ balance: '0.00' });
   });
 
-  test('saldo negativo também por UPDATE', async () => {
+  test('negative balance also by UPDATE', async () => {
     const row = await wallet();
     await expectViolation(() => db.sql('UPDATE wallets SET balance = -1 WHERE id = ?', [row.id]), 'wallets_balance_non_negative');
   });
 
-  test('versão menor que 1', async () => {
+  test('version lower than 1', async () => {
     await expectViolation(() => wallet({ version: 0 }), 'wallets_version_valid');
   });
 
-  test('moeda fora do formato', async () => {
+  test('currency outside the format', async () => {
     await expectViolation(() => wallet({ currency: 'brl' }), 'wallets_currency_format');
   });
 
-  test('duas wallets para o mesmo player e moeda; outra moeda é permitida', async () => {
+  test('two wallets for the same player and currency; another currency is allowed', async () => {
     const row = await wallet();
     await expectViolation(() => wallet({ player_id: row.player_id }), 'wallets_player_currency_unique');
     await wallet({ player_id: row.player_id, currency: 'USD' });
   });
 });
 
-describe('NUMERIC(20,2) e compatibilidade com Money', () => {
-  test.each(['0.00', '0.10', '25.00', '999999999999999999.99'])('%s volta como string exata e reidrata como Money', async (amount) => {
+describe('NUMERIC(20,2) and compatibility with Money', () => {
+  test.each(['0.00', '0.10', '25.00', '999999999999999999.99'])('%s comes back as an exact string and rehydrates as Money', async (amount) => {
     const row = await wallet({ balance: amount });
     const [read] = await db.sql('SELECT balance, currency FROM wallets WHERE id = ?', [row.id]);
     expect(typeof read?.balance).toBe('string');
@@ -144,52 +144,52 @@ describe('NUMERIC(20,2) e compatibilidade com Money', () => {
     expect(Money.from({ amount: read?.balance, currency: read?.currency }).toJSON()).toEqual({ amount, currency: 'BRL' });
   });
 
-  test('aritmética no banco é exata: 0.10 + 0.20 = 0.30', async () => {
+  test('arithmetic in the database is exact: 0.10 + 0.20 = 0.30', async () => {
     const row = await wallet({ balance: '0.10' });
     await db.sql('UPDATE wallets SET balance = balance + 0.20 WHERE id = ?', [row.id]);
     const [read] = await db.sql('SELECT balance FROM wallets WHERE id = ?', [row.id]);
     expect(read?.balance).toBe('0.30');
   });
 
-  test('o que Money não aceita por excesso de dígitos, o banco também recusa', async () => {
+  test('what Money does not accept for having too many digits, the database also refuses', async () => {
     await expectViolation(() => wallet({ balance: '1000000000000000000.00' }), 'overflow');
   });
 
-  test('limitação conhecida: o NUMERIC arredonda escala extra, então só Money pode escrever valores', async () => {
+  test('known limitation: NUMERIC rounds extra scale, so only Money may write values', async () => {
     const row = await wallet({ balance: '1.005' });
     const [read] = await db.sql('SELECT balance FROM wallets WHERE id = ?', [row.id]);
     expect(read?.balance).toBe('1.01');
   });
 });
 
-describe('wager_transactions: unicidade e idempotência', () => {
-  test('mesma idempotency key', async () => {
+describe('wager_transactions: uniqueness and idempotency', () => {
+  test('same idempotency key', async () => {
     const w = await wallet();
     const first = await tx(w.id);
     await expectViolation(() => tx(w.id, { idempotency_key: first.idempotency_key }), 'wager_tx_idempotency_key_unique');
   });
 
-  test('mesma key em outra wallet também conflita (escopo global)', async () => {
+  test('the same key on another wallet also conflicts (global scope)', async () => {
     const first = await tx((await wallet()).id);
     const other = await wallet();
     await expectViolation(() => tx(other.id, { idempotency_key: first.idempotency_key }), 'wager_tx_idempotency_key_unique');
   });
 
-  test('mesmo id externo no mesmo provider; em outro provider é permitido', async () => {
+  test('same external id on the same provider; on another provider it is allowed', async () => {
     const w = await wallet();
     const first = await tx(w.id);
     await expectViolation(() => tx(w.id, { external_transaction_id: first.external_transaction_id }), 'wager_tx_provider_external_unique');
     await tx(w.id, { provider_id: 'provider-b', external_transaction_id: first.external_transaction_id });
   });
 
-  test('payload_hash fora do formato SHA-256 hexadecimal', async () => {
+  test('payload_hash outside the hexadecimal SHA-256 format', async () => {
     const w = await wallet();
     await expectViolation(() => tx(w.id, { payload_hash: 'z'.repeat(64) }), 'wager_tx_payload_hash_format');
   });
 });
 
-describe('wager_transactions: valores de domínio', () => {
-  test.each(Object.values(WagerTransactionKind).filter((k) => k !== 'REFUND' && k !== 'ROLLBACK' && k !== 'OPENING'))('kind %s do domínio é aceito', async (kind) => {
+describe('wager_transactions: domain values', () => {
+  test.each(Object.values(WagerTransactionKind).filter((k) => k !== 'REFUND' && k !== 'ROLLBACK' && k !== 'OPENING'))('domain kind %s is accepted', async (kind) => {
     await tx((await wallet()).id, { kind });
   });
 
@@ -199,32 +199,32 @@ describe('wager_transactions: valores de domínio', () => {
     await expectViolation(() => tx(w.id, { status: 'DONE', processed_at: null }), 'wager_tx_status_valid');
   });
 
-  test('todos os códigos de rejeição do domínio são aceitos', async () => {
+  test('every rejection code of the domain is accepted', async () => {
     const w = await wallet();
     for (const code of Object.values(FailureCode).filter(isRejectionCode)) {
       await tx(w.id, { status: WagerTransactionStatus.Rejected, failure_code: code });
     }
   });
 
-  test('FAILED aceita só INTERNAL_ERROR, e REJECTED nunca o aceita', async () => {
+  test('FAILED accepts only INTERNAL_ERROR, and REJECTED never accepts it', async () => {
     const w = await wallet();
     await tx(w.id, { status: 'FAILED', failure_code: FailureCode.InternalError, observed_balance: null });
     await expectViolation(() => tx(w.id, { status: 'FAILED', failure_code: 'INSUFFICIENT_FUNDS', observed_balance: null }), 'wager_tx_failed_is_internal');
     await expectViolation(() => tx(w.id, { status: 'REJECTED', failure_code: 'INTERNAL_ERROR' }), 'wager_tx_rejected_not_internal');
   });
 
-  test('código desconhecido', async () => {
+  test('unknown code', async () => {
     const w = await wallet();
     await expectViolation(() => tx(w.id, { status: 'REJECTED', failure_code: 'NOPE' }), 'wager_tx_failure_code_valid');
   });
 
-  test('código é obrigatório em rejeição e proibido fora dela', async () => {
+  test('a code is required on a rejection and forbidden outside one', async () => {
     const w = await wallet();
     await expectViolation(() => tx(w.id, { status: 'REJECTED' }), 'wager_tx_failure_code_required');
     await expectViolation(() => tx(w.id, { failure_code: 'INSUFFICIENT_FUNDS' }), 'wager_tx_failure_code_required');
   });
 
-  test('valor: positivo nos kinds que movem saldo, zero só em LOSS, negativo nunca', async () => {
+  test('amount: positive for kinds that move balance, zero only on LOSS, never negative', async () => {
     const w = await wallet();
     await expectViolation(() => tx(w.id, { amount: '0.00' }), 'wager_tx_amount_valid');
     await expectViolation(() => tx(w.id, { amount: '-1.00' }), 'wager_tx_amount_valid');
@@ -232,20 +232,20 @@ describe('wager_transactions: valores de domínio', () => {
     await tx(w.id, { kind: 'LOSS', amount: '0.00' });
   });
 
-  test('OPENING exige o provider reservado, e o provider reservado só aceita OPENING', async () => {
+  test('OPENING requires the reserved provider, and the reserved provider only accepts OPENING', async () => {
     const w = await wallet();
     await tx(w.id, { kind: 'OPENING', provider_id: 'internal' });
     await expectViolation(() => tx(w.id, { kind: 'OPENING' }), 'wager_tx_opening_internal');
     await expectViolation(() => tx(w.id, { provider_id: 'internal' }), 'wager_tx_opening_internal');
   });
 
-  test('processed_at existe exatamente nos estados terminais', async () => {
+  test('processed_at exists exactly in terminal states', async () => {
     const w = await wallet();
     await expectViolation(() => tx(w.id, { processed_at: null }), 'wager_tx_processed_at_terminal');
     await expectViolation(() => tx(w.id, { status: 'PENDING', observed_balance: null }), 'wager_tx_processed_at_terminal');
   });
 
-  test('saldo observado: obrigatório na decisão, ausente na pendência, nunca negativo', async () => {
+  test('observed balance: required on a decision, absent while pending, never negative', async () => {
     const w = await wallet();
     await expectViolation(() => tx(w.id, { observed_balance: null }), 'wager_tx_observed_balance_decided');
     await expectViolation(() => tx(w.id, { observed_balance: '-1.00' }), 'wager_tx_observed_balance_non_negative');
@@ -255,7 +255,7 @@ describe('wager_transactions: valores de domínio', () => {
     );
   });
 
-  test('moeda do saldo observado: acompanha o saldo, tem formato válido e pode diferir da operação', async () => {
+  test('observed balance currency: follows the balance, has a valid format and may differ from the operation', async () => {
     const w = await wallet();
     await expectViolation(() => tx(w.id, { observed_balance_currency: null }), 'wager_tx_observed_balance_currency_paired');
     await expectViolation(
@@ -266,7 +266,7 @@ describe('wager_transactions: valores de domínio', () => {
     await tx(w.id, { status: 'REJECTED', failure_code: 'CURRENCY_MISMATCH', currency: 'USD', observed_balance_currency: 'BRL' });
   });
 
-  test('pendente está sempre agendada, e só pendente tem agendamento', async () => {
+  test('a pending transaction is always scheduled, and only a pending one has a schedule', async () => {
     const w = await wallet();
     const pending = { kind: 'REFUND', reference_external_transaction_id: 'x', status: 'PENDING_REFERENCE', processed_at: null, observed_balance: null };
     await expectViolation(() => tx(w.id, pending), 'wager_tx_pending_scheduled');
@@ -274,19 +274,19 @@ describe('wager_transactions: valores de domínio', () => {
     await expectViolation(() => tx(w.id, { next_attempt_at: NOW }), 'wager_tx_pending_scheduled');
   });
 
-  test('tentativas negativas', async () => {
+  test('negative attempts', async () => {
     const w = await wallet();
     await expectViolation(() => tx(w.id, { attempts: -1 }), 'wager_tx_attempts_valid');
   });
 });
 
-describe('wager_transactions: referências', () => {
-  test.each(['REFUND', 'ROLLBACK'])('%s exige referência externa', async (kind) => {
+describe('wager_transactions: references', () => {
+  test.each(['REFUND', 'ROLLBACK'])('%s requires an external reference', async (kind) => {
     const w = await wallet();
     await expectViolation(() => tx(w.id, { kind, status: 'REJECTED', failure_code: 'AMOUNT_MISMATCH' }), 'wager_tx_reference_required');
   });
 
-  test('BET não aceita referência; WIN e LOSS sim, opcional', async () => {
+  test('BET does not accept a reference; WIN and LOSS do, optionally', async () => {
     const w = await wallet();
     await expectViolation(
       () => tx(w.id, { reference_external_transaction_id: 'x', status: 'REJECTED', failure_code: 'REFERENCE_KIND_INVALID' }),
@@ -298,7 +298,7 @@ describe('wager_transactions: referências', () => {
     await tx(w.id, { kind: 'LOSS', reference_external_transaction_id: bet.external_transaction_id, reference_transaction_id: bet.id });
   });
 
-  test('uma transação não referencia a si mesma', async () => {
+  test('a transaction does not reference itself', async () => {
     const w = await wallet();
     const row = txRow(w.id, { kind: 'WIN', status: 'REJECTED', failure_code: 'REFERENCE_KIND_INVALID' });
     await expectViolation(
@@ -307,7 +307,7 @@ describe('wager_transactions: referências', () => {
     );
   });
 
-  test('aplicada com referência externa precisa ter a interna; interna exige externa', async () => {
+  test('applied with an external reference must have the internal one; internal requires external', async () => {
     const w = await wallet();
     const bet = await tx(w.id);
     await expectViolation(() => tx(w.id, { kind: 'REFUND', reference_external_transaction_id: 'x' }), 'wager_tx_processed_reference_resolved');
@@ -317,7 +317,7 @@ describe('wager_transactions: referências', () => {
     );
   });
 
-  test('referência interna inexistente ou de outra wallet', async () => {
+  test('internal reference nonexistent or from another wallet', async () => {
     const w = await wallet();
     const refund = { kind: 'REFUND', reference_external_transaction_id: 'x' };
     await expectViolation(() => tx(w.id, { ...refund, reference_transaction_id: randomUUID() }), 'wager_tx_reference_same_wallet');
@@ -325,18 +325,18 @@ describe('wager_transactions: referências', () => {
     await expectViolation(() => tx(w.id, { ...refund, reference_transaction_id: other.id }), 'wager_tx_reference_same_wallet');
   });
 
-  test('rejeição auditável pode divergir de player e moeda da wallet', async () => {
+  test('an audited rejection may diverge from the player and currency of the wallet', async () => {
     const w = await wallet();
     await tx(w.id, { status: 'REJECTED', failure_code: 'PLAYER_WALLET_MISMATCH', player_id: randomUUID() });
     await tx(w.id, { status: 'REJECTED', failure_code: 'CURRENCY_MISMATCH', currency: 'USD' });
   });
 
-  test('wallet inexistente', async () => {
+  test('nonexistent wallet', async () => {
     await expectViolation(() => tx(randomUUID()), 'wager_transactions_wallet_id_fkey');
   });
 });
 
-describe('reversões', () => {
+describe('reversals', () => {
   const reversal = (kind: string, bet: Row, overrides: Row = {}) => ({
     kind,
     reference_external_transaction_id: bet.external_transaction_id,
@@ -349,14 +349,14 @@ describe('reversões', () => {
     ['REFUND', 'ROLLBACK'],
     ['ROLLBACK', 'REFUND'],
     ['ROLLBACK', 'ROLLBACK'],
-  ])('%s seguido de %s na mesma operação original', async (first, second) => {
+  ])('%s followed by %s on the same original operation', async (first, second) => {
     const w = await wallet();
     const bet = await tx(w.id);
     await tx(w.id, reversal(first, bet));
     await expectViolation(() => tx(w.id, reversal(second, bet)), 'wager_tx_single_reversal');
   });
 
-  test('rejeições não ocupam a vaga: várias podem existir, e depois uma aplicada', async () => {
+  test('rejections do not take the slot: several can exist, and then one applied', async () => {
     const w = await wallet();
     const bet = await tx(w.id);
     const rejected = { status: 'REJECTED', failure_code: 'AMOUNT_MISMATCH' };
@@ -365,7 +365,7 @@ describe('reversões', () => {
     await tx(w.id, reversal('REFUND', bet));
   });
 
-  test('operações legítimas do README não são bloqueadas', async () => {
+  test('legitimate README operations are not blocked', async () => {
     const w = await wallet();
     const bet = await tx(w.id);
     // Vários WIN e LOSS referenciando a mesma BET.
@@ -383,7 +383,7 @@ describe('reversões', () => {
   });
 });
 
-describe('wager_transactions: triggers de estado', () => {
+describe('wager_transactions: state triggers', () => {
   const pending = (reference = 'x') => ({
     kind: 'REFUND',
     reference_external_transaction_id: reference,
@@ -397,13 +397,13 @@ describe('wager_transactions: triggers de estado', () => {
     ['PROCESSED', {}],
     ['REJECTED', { status: 'REJECTED', failure_code: 'INSUFFICIENT_FUNDS' }],
     ['FAILED', { status: 'FAILED', failure_code: 'INTERNAL_ERROR', observed_balance: null }],
-  ])('%s não muda nem é apagada', async (_label, overrides) => {
+  ])('%s is neither changed nor deleted', async (_label, overrides) => {
     const row = await tx((await wallet()).id, overrides);
     await expectViolation(() => db.sql(`UPDATE wager_transactions SET attempts = 1 WHERE id = ?`, [row.id]), 'estado terminal');
     await expectViolation(() => db.sql(`DELETE FROM wager_transactions WHERE id = ?`, [row.id]), 'estado terminal');
   });
 
-  test('retomada: PENDING_REFERENCE agenda novas tentativas e depois é decidida', async () => {
+  test('resumption: PENDING_REFERENCE schedules new attempts and is then decided', async () => {
     const w = await wallet();
     const bet = await tx(w.id);
     const row = await tx(w.id, pending(bet.external_transaction_id as string));
@@ -419,7 +419,7 @@ describe('wager_transactions: triggers de estado', () => {
     expect(read).toEqual({ status: 'PROCESSED', attempts: 1 });
   });
 
-  test('PENDING_REFERENCE esgotada vira REJECTED REFERENCE_NOT_FOUND', async () => {
+  test('an exhausted PENDING_REFERENCE becomes REJECTED REFERENCE_NOT_FOUND', async () => {
     const row = await tx((await wallet()).id, pending());
     await db.sql(
       `UPDATE wager_transactions
@@ -432,7 +432,7 @@ describe('wager_transactions: triggers de estado', () => {
     expect(read).toEqual({ status: 'REJECTED', failure_code: 'REFERENCE_NOT_FOUND' });
   });
 
-  test('PENDING_REFERENCE não volta a PENDING', async () => {
+  test('PENDING_REFERENCE does not go back to PENDING', async () => {
     const row = await tx((await wallet()).id, pending());
     await expectViolation(
       () => db.sql(`UPDATE wager_transactions SET status = 'PENDING', next_attempt_at = NULL WHERE id = ?`, [row.id]),
@@ -446,7 +446,7 @@ describe('wager_transactions: triggers de estado', () => {
     ['kind', "'ROLLBACK'"],
     ['idempotency_key', "'outra'"],
     ['round_id', "'outra'"],
-  ])('os dados da operação pendente são imutáveis: %s', async (column, value) => {
+  ])('the pending operation data is immutable: %s', async (column, value) => {
     const row = await tx((await wallet()).id, pending());
     await expectViolation(() => db.sql(`UPDATE wager_transactions SET ${column} = ${value} WHERE id = ?`, [row.id]), 'são imutáveis');
   });
@@ -458,7 +458,7 @@ describe('wallet_ledger_entries', () => {
     return { w, t: await tx(w.id) };
   }
 
-  test('DEBIT e CREDIT coerentes são aceitos; seq cresce', async () => {
+  test('coherent DEBIT and CREDIT are accepted; seq grows', async () => {
     const { w, t } = await setup();
     const first = ledgerRow(w.id, t.id);
     await insert('wallet_ledger_entries', first);
@@ -470,41 +470,41 @@ describe('wallet_ledger_entries', () => {
   });
 
   test.each([
-    ['DEBIT calculado errado', { balance_after: '75.01' }, 'ledger_arithmetic'],
-    ['CREDIT calculado errado', { direction: 'CREDIT', balance_after: '75.00' }, 'ledger_arithmetic'],
-    ['valor zero', { amount: '0.00', balance_after: '100.00' }, 'ledger_amount_positive'],
-    ['valor negativo', { amount: '-25.00', balance_after: '125.00' }, 'ledger_amount_positive'],
-    ['saldo posterior negativo', { amount: '125.00', balance_after: '-25.00' }, 'ledger_balances_non_negative'],
-    ['saldo anterior negativo', { direction: 'CREDIT', balance_before: '-5.00', balance_after: '20.00' }, 'ledger_balances_non_negative'],
+    ['DEBIT computed wrong', { balance_after: '75.01' }, 'ledger_arithmetic'],
+    ['CREDIT computed wrong', { direction: 'CREDIT', balance_after: '75.00' }, 'ledger_arithmetic'],
+    ['zero amount', { amount: '0.00', balance_after: '100.00' }, 'ledger_amount_positive'],
+    ['negative amount', { amount: '-25.00', balance_after: '125.00' }, 'ledger_amount_positive'],
+    ['negative resulting balance', { amount: '125.00', balance_after: '-25.00' }, 'ledger_balances_non_negative'],
+    ['negative previous balance', { direction: 'CREDIT', balance_before: '-5.00', balance_after: '20.00' }, 'ledger_balances_non_negative'],
     // Duas constraints recusam: o PostgreSQL avalia CHECKs em ordem alfabética e reporta a aritmética.
-    ['direção desconhecida', { direction: 'SIDEWAYS' }, 'ledger_arithmetic'],
-    ['versão zero', { wallet_version: 0 }, 'ledger_wallet_version_valid'],
-    ['moeda fora do formato', { currency: 'brl' }, 'ledger_currency_format'],
-  ])('rejeita: %s', async (_label, overrides, constraint) => {
+    ['unknown direction', { direction: 'SIDEWAYS' }, 'ledger_arithmetic'],
+    ['zero version', { wallet_version: 0 }, 'ledger_wallet_version_valid'],
+    ['currency outside the format', { currency: 'brl' }, 'ledger_currency_format'],
+  ])('rejects: %s', async (_label, overrides, constraint) => {
     const { w, t } = await setup();
     await expectViolation(() => insert('wallet_ledger_entries', ledgerRow(w.id, t.id, overrides)), constraint);
   });
 
-  test('as direções do domínio são as aceitas', async () => {
+  test('the domain directions are the accepted ones', async () => {
     const { w, t } = await setup();
     expect(Object.values<string>(LedgerDirection).sort()).toEqual(['CREDIT', 'DEBIT']);
     await insert('wallet_ledger_entries', ledgerRow(w.id, t.id, { direction: LedgerDirection.Debit }));
   });
 
-  test('segundo lançamento para a mesma transação: retry não duplica o débito', async () => {
+  test('second entry for the same transaction: a retry does not duplicate the debit', async () => {
     const { w, t } = await setup();
     await insert('wallet_ledger_entries', ledgerRow(w.id, t.id));
     await expectViolation(() => insert('wallet_ledger_entries', ledgerRow(w.id, t.id)), 'ledger_transaction_wallet_unique');
   });
 
-  test('duas entradas na mesma versão da wallet: lost update falha', async () => {
+  test('two entries on the same wallet version: a lost update fails', async () => {
     const { w, t } = await setup();
     await insert('wallet_ledger_entries', ledgerRow(w.id, t.id, { wallet_version: 2 }));
     const other = await tx(w.id);
     await expectViolation(() => insert('wallet_ledger_entries', ledgerRow(w.id, other.id, { wallet_version: 2 })), 'ledger_wallet_version_unique');
   });
 
-  test('transação de outra wallet ou inexistente', async () => {
+  test('transaction from another wallet or nonexistent', async () => {
     const { w } = await setup();
     const foreign = await tx((await wallet()).id);
     await expectViolation(() => insert('wallet_ledger_entries', ledgerRow(w.id, foreign.id)), 'ledger_transaction_same_wallet');
@@ -515,13 +515,13 @@ describe('wallet_ledger_entries', () => {
     ['LOSS', { kind: 'LOSS' }],
     ['REJECTED', { status: 'REJECTED', failure_code: 'INSUFFICIENT_FUNDS' }],
     ['FAILED', { status: 'FAILED', failure_code: 'INTERNAL_ERROR', observed_balance: null }],
-  ])('%s não gera lançamento', async (_label, overrides) => {
+  ])('%s produces no ledger entry', async (_label, overrides) => {
     const w = await wallet();
     const t = await tx(w.id, overrides);
     await expectViolation(() => insert('wallet_ledger_entries', ledgerRow(w.id, t.id)), 'não pode ter lançamento');
   });
 
-  test('UPDATE, DELETE e TRUNCATE são bloqueados, inclusive por SQL direto', async () => {
+  test('UPDATE, DELETE and TRUNCATE are blocked, even by direct SQL', async () => {
     const { w, t } = await setup();
     const entry = ledgerRow(w.id, t.id);
     await insert('wallet_ledger_entries', entry);
@@ -532,13 +532,13 @@ describe('wallet_ledger_entries', () => {
     expect(read?.amount).toBe('25.00');
   });
 
-  test('wallet e transação com lançamento não podem ser apagadas', async () => {
+  test('a wallet and a transaction with an entry cannot be deleted', async () => {
     const { w, t } = await setup();
     await insert('wallet_ledger_entries', ledgerRow(w.id, t.id));
     await expectViolation(() => db.sql('DELETE FROM wallets WHERE id = ?', [w.id]), 'foreign key');
   });
 
-  test('seq é gerado pelo banco e não pode ser informado', async () => {
+  test('seq is generated by the database and cannot be supplied', async () => {
     const { w, t } = await setup();
     await expectViolation(() => insert('wallet_ledger_entries', { ...ledgerRow(w.id, t.id), seq: 1 }), 'seq');
   });
@@ -553,14 +553,14 @@ describe('inbox_messages', () => {
     ...overrides,
   });
 
-  test('mesma mensagem para o mesmo consumidor; outro consumidor é permitido', async () => {
+  test('same message for the same consumer; another consumer is allowed', async () => {
     const first = row();
     await insert('inbox_messages', first);
     await expectViolation(() => insert('inbox_messages', first), 'inbox_messages_pkey');
     await insert('inbox_messages', { ...first, consumer_name: 'outro' });
   });
 
-  test('ON CONFLICT DO NOTHING permite detectar a duplicata sem abortar a transação', async () => {
+  test('ON CONFLICT DO NOTHING allows detecting the duplicate without aborting the transaction', async () => {
     const first = row();
     const statement = `INSERT INTO inbox_messages (consumer_name, message_id, payload_hash, received_at)
       VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING message_id`;
@@ -569,7 +569,7 @@ describe('inbox_messages', () => {
     expect(await db.sql(statement, params)).toHaveLength(0);
   });
 
-  test('hash fora do formato', async () => {
+  test('hash outside the format', async () => {
     await expectViolation(() => insert('inbox_messages', row({ payload_hash: 'x' })), 'inbox_payload_hash_format');
   });
 });
@@ -585,7 +585,7 @@ describe('outbox_messages', () => {
     ...overrides,
   });
 
-  test('o envelope volta intacto, com o valor monetário como string', async () => {
+  test('the envelope comes back intact, with the monetary value as a string', async () => {
     const message = row();
     await insert('outbox_messages', message);
     const [read] = await db.sql('SELECT payload, attempts, published_at FROM outbox_messages WHERE id = ?', [message.id]);
@@ -594,7 +594,7 @@ describe('outbox_messages', () => {
     expect(read?.published_at).toBeNull();
   });
 
-  test('payload que não é objeto, tentativas negativas e agendamento ausente', async () => {
+  test('a payload that is not an object, negative attempts and a missing schedule', async () => {
     await expectViolation(() => insert('outbox_messages', row({ payload: '[]' })), 'outbox_payload_is_object');
     await expectViolation(() => insert('outbox_messages', row({ attempts: -1 })), 'outbox_attempts_valid');
     await expectViolation(() => insert('outbox_messages', row({ next_attempt_at: null })), 'next_attempt_at');

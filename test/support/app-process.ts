@@ -1,7 +1,8 @@
 import net from 'node:net';
+import { fileURLToPath } from 'node:url';
 import { testEnv } from './env';
 
-const ROOT = new URL('../..', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 export interface AppProcess {
   readonly role: 'api' | 'worker';

@@ -26,7 +26,7 @@ const bet = (status: 'processed' | 'pending' = 'processed', overrides = {}) =>
     : newTx(Kind.Bet, { externalTransactionId: REF, ...overrides });
 
 describe('create', () => {
-  test.each([Kind.Bet, Kind.Win, Kind.Loss])('%s nasce PENDING sem referência', (kind) => {
+  test.each([Kind.Bet, Kind.Win, Kind.Loss])('%s is born PENDING without a reference', (kind) => {
     const tx = newTx(kind);
     expect(tx.status).toBe(Status.Pending);
     expect(tx.kind).toBe(kind);
@@ -38,37 +38,37 @@ describe('create', () => {
     expect(tx.createdAt).toEqual(T0);
   });
 
-  test.each([Kind.Refund, Kind.Rollback])('%s exige referência', (kind) => {
+  test.each([Kind.Refund, Kind.Rollback])('%s requires a reference', (kind) => {
     expect(() => newTx(kind)).toThrow(InvalidWagerTransactionError);
     expect(() => newTx(kind, { referenceExternalTransactionId: '' })).toThrow(InvalidWagerTransactionError);
     expect(newTx(kind, { referenceExternalTransactionId: REF }).status).toBe(Status.Pending);
   });
 
-  test.each([Kind.Win, Kind.Loss])('%s aceita referência opcional', (kind) => {
+  test.each([Kind.Win, Kind.Loss])('%s accepts an optional reference', (kind) => {
     expect(newTx(kind, { referenceExternalTransactionId: REF }).referenceExternalTransactionId).toBe(REF);
   });
 
-  test('BET não aceita referência', () => {
+  test('BET does not accept a reference', () => {
     expect(() => newTx(Kind.Bet, { referenceExternalTransactionId: REF })).toThrow(InvalidWagerTransactionError);
   });
 
-  test('uma transação não referencia a si mesma', () => {
+  test('a transaction does not reference itself', () => {
     expect(() => newTx(Kind.Refund, { externalTransactionId: REF, referenceExternalTransactionId: REF })).toThrow(
       InvalidWagerTransactionError,
     );
   });
 
-  test('OPENING e o provider reservado não entram como operação externa', () => {
+  test('OPENING and the reserved provider are not accepted as an external operation', () => {
     expect(() => newTx(Kind.Opening)).toThrow(InvalidWagerTransactionError);
     expect(() => newTx(Kind.Bet, { providerId: INTERNAL_PROVIDER_ID })).toThrow(InvalidWagerTransactionError);
   });
 
-  test.each([Kind.Bet, Kind.Win])('%s rejeita valor zero e negativo', (kind) => {
+  test.each([Kind.Bet, Kind.Win])('%s rejects a zero or negative amount', (kind) => {
     expect(() => newTx(kind, { money: brl('0.00') })).toThrow(InvalidWagerTransactionError);
     expect(() => newTx(kind, { money: brl('1.00').negate() })).toThrow(InvalidWagerTransactionError);
   });
 
-  test('reversões rejeitam valor zero; LOSS aceita zero mas não negativo', () => {
+  test('reversals reject a zero amount; LOSS accepts zero but not negative', () => {
     expect(() => refund({ money: brl('0.00') })).toThrow(InvalidWagerTransactionError);
     expect(() => rollback({ money: brl('0.00') })).toThrow(InvalidWagerTransactionError);
     expect(newTx(Kind.Loss, { money: brl('0.00') }).money.isZero()).toBe(true);
@@ -76,7 +76,7 @@ describe('create', () => {
   });
 
   test.each(['id', 'providerId', 'externalTransactionId', 'idempotencyKey', 'payloadHash', 'walletId', 'playerId', 'roundId', 'gameId'])(
-    'campo obrigatório: %s',
+    'required field: %s',
     (field) => {
       expect(() => WagerTransaction.create({ ...txProps(Kind.Bet), [field]: '' })).toThrow(InvalidWagerTransactionError);
     },
@@ -94,7 +94,7 @@ describe('createOpening', () => {
       createdAt: T0,
     });
 
-  test('campos internos são determinísticos', () => {
+  test('internal fields are deterministic', () => {
     const tx = opening();
     expect(tx.kind).toBe(Kind.Opening);
     expect(tx.status).toBe(Status.Pending);
@@ -108,7 +108,7 @@ describe('createOpening', () => {
     expect(tx.requiresReference()).toBe(false);
   });
 
-  test('exige valor positivo', () => {
+  test('requires a positive amount', () => {
     expect(() =>
       WagerTransaction.createOpening({
         id: 'tx-open',
@@ -122,7 +122,7 @@ describe('createOpening', () => {
   });
 });
 
-describe('transições', () => {
+describe('transitions', () => {
   test('PENDING → PROCESSED registra processedAt', () => {
     const tx = newTx(Kind.Bet);
     tx.markProcessed(undefined, T1);
@@ -132,18 +132,18 @@ describe('transições', () => {
     expect(tx.failureCode).toBeUndefined();
   });
 
-  test('PENDING → PROCESSED guarda o id interno da referência', () => {
+  test('PENDING → PROCESSED keeps the internal id of the reference', () => {
     const tx = refund();
     tx.markProcessed('tx-bet', T1);
     expect(tx.referenceTransactionId).toBe('tx-bet');
   });
 
-  test('o id interno da referência precisa acompanhar a referência externa', () => {
+  test('the internal reference id must accompany the external reference', () => {
     expect(() => refund().markProcessed(undefined, T1)).toThrow(InvalidTransactionStateError);
     expect(() => newTx(Kind.Bet).markProcessed('tx-x', T1)).toThrow(InvalidTransactionStateError);
   });
 
-  test('PENDING → REJECTED guarda o código e processedAt', () => {
+  test('PENDING → REJECTED keeps the code and processedAt', () => {
     const tx = newTx(Kind.Bet);
     tx.reject(FailureCode.InsufficientFunds, T1);
     expect(tx.status).toBe(Status.Rejected);
@@ -152,7 +152,7 @@ describe('transições', () => {
     expect(tx.isTerminal()).toBe(true);
   });
 
-  test('PENDING → FAILED guarda o código e processedAt', () => {
+  test('PENDING → FAILED keeps the code and processedAt', () => {
     const tx = newTx(Kind.Bet);
     tx.fail(FailureCode.InternalError, T1);
     expect(tx.status).toBe(Status.Failed);
@@ -161,7 +161,7 @@ describe('transições', () => {
     expect(tx.isTerminal()).toBe(true);
   });
 
-  test('PENDING → PENDING_REFERENCE não é terminal e não tem processedAt', () => {
+  test('PENDING → PENDING_REFERENCE is not terminal and has no processedAt', () => {
     const tx = refund();
     tx.markPendingReference();
     expect(tx.status).toBe(Status.PendingReference);
@@ -169,7 +169,7 @@ describe('transições', () => {
     expect(tx.processedAt).toBeUndefined();
   });
 
-  test('retomada: PENDING_REFERENCE → PROCESSED', () => {
+  test('resumption: PENDING_REFERENCE → PROCESSED', () => {
     const tx = refund();
     tx.markPendingReference();
     tx.markProcessed('tx-bet', T2);
@@ -178,7 +178,7 @@ describe('transições', () => {
     expect(tx.processedAt).toEqual(T2);
   });
 
-  test('retomada: PENDING_REFERENCE → REJECTED (referência nunca chegou)', () => {
+  test('resumption: PENDING_REFERENCE → REJECTED (the reference never arrived)', () => {
     const tx = refund();
     tx.markPendingReference();
     tx.reject(FailureCode.ReferenceNotFound, T2);
@@ -186,14 +186,14 @@ describe('transições', () => {
     expect(tx.failureCode).toBe(FailureCode.ReferenceNotFound);
   });
 
-  test('retomada: PENDING_REFERENCE → FAILED', () => {
+  test('resumption: PENDING_REFERENCE → FAILED', () => {
     const tx = refund();
     tx.markPendingReference();
     tx.fail(FailureCode.InternalError, T2);
     expect(tx.status).toBe(Status.Failed);
   });
 
-  test('agendamento: o primeiro não conta como tentativa, os seguintes sim, e decidir limpa o prazo', () => {
+  test('scheduling: the first does not count as an attempt, the following do, and deciding clears the deadline', () => {
     const tx = refund();
     tx.markPendingReference();
     tx.scheduleReferenceRetry(T1);
@@ -207,14 +207,14 @@ describe('transições', () => {
     expect(tx.attempts).toBe(1);
   });
 
-  test('agendamento só vale em PENDING_REFERENCE', () => {
+  test('scheduling only applies in PENDING_REFERENCE', () => {
     expect(() => refund().scheduleReferenceRetry(T1)).toThrow(InvalidTransactionStateError);
     const done = newTx(Kind.Bet);
     done.markProcessed(undefined, T1);
     expect(() => done.scheduleReferenceRetry(T2)).toThrow(InvalidTransactionStateError);
   });
 
-  test('rejeitar ou falhar uma pendente também limpa o prazo', () => {
+  test('rejecting or failing a pending transaction also clears the deadline', () => {
     const rejected = refund();
     rejected.markPendingReference();
     rejected.scheduleReferenceRetry(T1);
@@ -227,7 +227,7 @@ describe('transições', () => {
     expect(failed.nextAttemptAt).toBeUndefined();
   });
 
-  test('PENDING_REFERENCE não se repete: a transação apenas permanece', () => {
+  test('PENDING_REFERENCE does not repeat: the transaction just stays', () => {
     const tx = refund();
     tx.markPendingReference();
     expect(() => tx.markPendingReference()).toThrow(InvalidTransactionStateError);
@@ -239,7 +239,7 @@ describe('transições', () => {
     ['REJECTED', () => { const t = newTx(Kind.Bet); t.reject(FailureCode.InsufficientFunds, T1); return t; }],
     ['FAILED', () => { const t = newTx(Kind.Bet); t.fail(FailureCode.InternalError, T1); return t; }],
   ];
-  test.each(terminal)('%s é terminal: nenhuma transição passa e o estado não muda', (status, build) => {
+  test.each(terminal)('%s is terminal: no transition passes and the state does not change', (status, build) => {
     const tx = build();
     expect(() => tx.markProcessed(undefined, T2)).toThrow(InvalidTransactionStateError);
     expect(() => tx.markPendingReference()).toThrow(InvalidTransactionStateError);
@@ -250,17 +250,17 @@ describe('transições', () => {
     expect(tx.processedAt).toEqual(T1);
   });
 
-  test('reject só aceita códigos de negócio e fail só aceita código de infraestrutura', () => {
+  test('reject only accepts business codes and fail only accepts an infrastructure code', () => {
     expect(() => newTx(Kind.Bet).reject(FailureCode.InternalError, T1)).toThrow(InvalidTransactionStateError);
     expect(() => newTx(Kind.Bet).fail(FailureCode.InsufficientFunds, T1)).toThrow(InvalidTransactionStateError);
   });
 
-  test('transição inválida é erro de programação com code estável', () => {
+  test('an invalid transition is a programming error with a stable code', () => {
     const tx = newTx(Kind.Bet);
     tx.markProcessed(undefined, T1);
     try {
       tx.markProcessed(undefined, T2);
-      throw new Error('deveria lançar');
+      throw new Error('should have thrown');
     } catch (error) {
       expect(error).toBeInstanceOf(ProgrammingError);
       expect((error as InvalidTransactionStateError).code).toBe('INVALID_TRANSACTION_STATE');
@@ -268,8 +268,8 @@ describe('transições', () => {
   });
 });
 
-describe('consultas', () => {
-  test('affectsBalance é false só para LOSS', () => {
+describe('queries', () => {
+  test('affectsBalance is false only for LOSS', () => {
     expect(newTx(Kind.Loss).affectsBalance()).toBe(false);
     expect(newTx(Kind.Bet).affectsBalance()).toBe(true);
     expect(newTx(Kind.Win).affectsBalance()).toBe(true);
@@ -277,7 +277,7 @@ describe('consultas', () => {
     expect(rollback().affectsBalance()).toBe(true);
   });
 
-  test('requiresReference é true para REFUND e ROLLBACK', () => {
+  test('requiresReference is true for REFUND and ROLLBACK', () => {
     expect(refund().requiresReference()).toBe(true);
     expect(rollback().requiresReference()).toBe(true);
     expect(newTx(Kind.Bet).requiresReference()).toBe(false);
@@ -285,20 +285,20 @@ describe('consultas', () => {
     expect(newTx(Kind.Loss).requiresReference()).toBe(false);
   });
 
-  test('matchesPayload compara o hash: mesma key com payload diferente não é replay', () => {
+  test('matchesPayload compares the hash: the same key with a different payload is not a replay', () => {
     const tx = newTx(Kind.Bet, { payloadHash: 'abc' });
     expect(tx.matchesPayload('abc')).toBe(true);
     expect(tx.matchesPayload('abd')).toBe(false);
   });
 
-  test('ledgerDirectionFor por kind', () => {
+  test('ledgerDirectionFor by kind', () => {
     expect(newTx(Kind.Bet).ledgerDirectionFor()).toBe(LedgerDirection.Debit);
     expect(newTx(Kind.Win).ledgerDirectionFor()).toBe(LedgerDirection.Credit);
     expect(refund().ledgerDirectionFor(bet())).toBe(LedgerDirection.Credit);
     expect(() => newTx(Kind.Loss).ledgerDirectionFor()).toThrow(InvalidTransactionStateError);
   });
 
-  test('ledgerDirectionFor em ROLLBACK é o inverso da referência', () => {
+  test('ledgerDirectionFor in a ROLLBACK is the inverse of the reference', () => {
     expect(rollback().ledgerDirectionFor(newTx(Kind.Bet))).toBe(LedgerDirection.Credit);
     expect(rollback().ledgerDirectionFor(newTx(Kind.Win))).toBe(LedgerDirection.Debit);
     expect(rollback().ledgerDirectionFor(refund())).toBe(LedgerDirection.Debit);
@@ -307,12 +307,12 @@ describe('consultas', () => {
     expect(() => rollback().ledgerDirectionFor(rollback({ externalTransactionId: 'other' }))).toThrow(InvalidTransactionStateError);
   });
 
-  test('insufficientFundsCode distingue aposta de reversão', () => {
+  test('insufficientFundsCode tells a bet from a reversal', () => {
     expect(newTx(Kind.Bet).insufficientFundsCode()).toBe(FailureCode.InsufficientFunds);
     expect(rollback().insufficientFundsCode()).toBe(FailureCode.ReversalInsufficientFunds);
   });
 
-  test('validateWallet confere player e moeda', () => {
+  test('validateWallet checks player and currency', () => {
     const wallet = openWallet();
     expect(newTx(Kind.Bet).validateWallet(wallet)).toBeUndefined();
     expect(newTx(Kind.Bet, { playerId: 'outro' }).validateWallet(wallet)).toBe(FailureCode.PlayerWalletMismatch);
@@ -321,7 +321,7 @@ describe('consultas', () => {
 });
 
 describe('validateReference', () => {
-  test('referência coerente passa', () => {
+  test('a consistent reference passes', () => {
     expect(refund().validateReference(bet())).toBeUndefined();
   });
 
@@ -329,17 +329,17 @@ describe('validateReference', () => {
     ['provider', { providerId: 'provider-b' }],
     ['player', { playerId: 'player-2' }],
     ['wallet', { walletId: 'wallet-2' }],
-    ['moeda', { money: usd('25.00') }],
-    ['rodada', { roundId: 'round-2' }],
-  ])('%s diferente: REFERENCE_MISMATCH', (_label, overrides) => {
+    ['currency', { money: usd('25.00') }],
+    ['round', { roundId: 'round-2' }],
+  ])('different %s: REFERENCE_MISMATCH', (_label, overrides) => {
     expect(refund().validateReference(bet('processed', overrides))).toBe(FailureCode.ReferenceMismatch);
   });
 
-  test('gameId diferente é aceito: a regra 2 não o lista', () => {
+  test('a different gameId is accepted: rule 2 does not list it', () => {
     expect(refund().validateReference(bet('processed', { gameId: 'outro-jogo' }))).toBeUndefined();
   });
 
-  test('referência REJECTED ou FAILED: REFERENCE_NOT_PROCESSED', () => {
+  test('REJECTED or FAILED reference: REFERENCE_NOT_PROCESSED', () => {
     const rejected = bet('pending');
     rejected.reject(FailureCode.InsufficientFunds, T1);
     const failed = bet('pending');
@@ -348,17 +348,17 @@ describe('validateReference', () => {
     expect(refund().validateReference(failed)).toBe(FailureCode.ReferenceNotProcessed);
   });
 
-  test('referência ainda não decidida não é reprovada por isso', () => {
+  test('a reference that is not yet decided is not rejected for that', () => {
     expect(refund().validateReference(bet('pending'))).toBeUndefined();
   });
 
-  test('valor diferente: AMOUNT_MISMATCH nas reversões, livre em WIN', () => {
+  test('different amount: AMOUNT_MISMATCH in reversals, free in a WIN', () => {
     expect(refund({ money: brl('24.99') }).validateReference(bet())).toBe(FailureCode.AmountMismatch);
     expect(rollback({ money: brl('25.01') }).validateReference(bet())).toBe(FailureCode.AmountMismatch);
     expect(newTx(Kind.Win, { referenceExternalTransactionId: REF, money: brl('500.00') }).validateReference(bet())).toBeUndefined();
   });
 
-  test('reversão já processada: ALREADY_REVERSED, para o mesmo tipo e para o outro', () => {
+  test('reversal already processed: ALREADY_REVERSED, for the same kind and for the other', () => {
     const reversal = (kind: Kind) =>
       processedTx(kind, { externalTransactionId: 'ext-earlier', referenceExternalTransactionId: REF });
     expect(refund().validateReference(bet(), reversal(Kind.Refund))).toBe(FailureCode.AlreadyReversed);
@@ -367,13 +367,13 @@ describe('validateReference', () => {
     expect(rollback().validateReference(bet(), reversal(Kind.Rollback))).toBe(FailureCode.AlreadyReversed);
   });
 
-  test('reversão anterior rejeitada não impede uma nova', () => {
+  test('a previous rejected reversal does not prevent a new one', () => {
     const earlier = refund({ externalTransactionId: 'ext-earlier' });
     earlier.reject(FailureCode.AmountMismatch, T1);
     expect(refund().validateReference(bet(), earlier)).toBeUndefined();
   });
 
-  test('tipos de referência aceitos por operação', () => {
+  test('reference kinds accepted per operation', () => {
     const win = processedTx(Kind.Win, { externalTransactionId: REF });
     const loss = processedTx(Kind.Loss, { externalTransactionId: REF });
     const invalid = FailureCode.ReferenceKindInvalid;
@@ -387,7 +387,7 @@ describe('validateReference', () => {
 });
 
 describe('rehydrate', () => {
-  test('reconstrói estado terminal sem passar pelas transições', () => {
+  test('rebuilds a terminal state without going through the transitions', () => {
     const tx = WagerTransaction.rehydrate({
       ...txProps(Kind.Refund, { referenceExternalTransactionId: REF }),
       status: Status.Rejected,
@@ -402,7 +402,7 @@ describe('rehydrate', () => {
     expect(tx.isTerminal()).toBe(true);
   });
 
-  test('não revalida regras de criação: aceita OPENING interno e referência já resolvida', () => {
+  test('does not revalidate creation rules: accepts an internal OPENING and an already resolved reference', () => {
     const tx = WagerTransaction.rehydrate({
       ...txProps(Kind.Opening, { providerId: INTERNAL_PROVIDER_ID }),
       status: Status.Processed,
@@ -413,7 +413,7 @@ describe('rehydrate', () => {
     expect(tx.referenceTransactionId).toBe('tx-x');
   });
 
-  test('reidratada em PENDING_REFERENCE pode ser retomada', () => {
+  test('rehydrated as PENDING_REFERENCE can be resumed', () => {
     const tx = WagerTransaction.rehydrate({
       ...txProps(Kind.Refund, { referenceExternalTransactionId: REF }),
       status: Status.PendingReference,
@@ -423,7 +423,7 @@ describe('rehydrate', () => {
     expect(tx.status).toBe(Status.Processed);
   });
 
-  test('alterar Date exposto não afeta a transação', () => {
+  test('changing an exposed Date does not affect the transaction', () => {
     const tx = newTx(Kind.Bet);
     tx.markProcessed(undefined, T1);
     tx.processedAt!.setFullYear(2000);
@@ -433,15 +433,15 @@ describe('rehydrate', () => {
   });
 });
 
-describe('taxonomia de erros', () => {
-  test('todo código pertence a exatamente uma categoria; só INTERNAL_ERROR é de infraestrutura', () => {
+describe('error taxonomy', () => {
+  test('every code belongs to exactly one category; only INTERNAL_ERROR is infrastructure', () => {
     for (const code of Object.values(FailureCode)) {
       expect(isRejectionCode(code)).toBe(!isFailedCode(code));
     }
     expect(Object.values(FailureCode).filter(isFailedCode)).toEqual([FailureCode.InternalError]);
   });
 
-  test('os valores dos códigos são estáveis', () => {
+  test('the code values are stable', () => {
     expect(Object.values<string>(FailureCode).sort()).toEqual([
       'ALREADY_REVERSED',
       'AMOUNT_MISMATCH',
@@ -458,7 +458,7 @@ describe('taxonomia de erros', () => {
     ]);
   });
 
-  test('negócio, programação e infraestrutura são hierarquias distintas', () => {
+  test('business, programming and infrastructure are distinct hierarchies', () => {
     const invalidPayload = new InvalidWagerTransactionError('x');
     expect(invalidPayload).toBeInstanceOf(DomainError);
     expect(invalidPayload).not.toBeInstanceOf(ProgrammingError);

@@ -39,7 +39,7 @@ describe('GET /health (PostgreSQL e LocalStack reais)', () => {
 
   const pgUrl = (host: string, port: number) => withHostPort(testEnv().DATABASE_URL!, host, port);
 
-  test('ready: 200 com PostgreSQL, fila de entrada e fila de eventos acessíveis', async () => {
+  test('ready: 200 with PostgreSQL, the input queue and the events queue reachable', async () => {
     const get = await start();
     const { status, body } = await get('/health/ready');
     expect(status).toBe(200);
@@ -48,7 +48,7 @@ describe('GET /health (PostgreSQL e LocalStack reais)', () => {
     for (const check of Object.values<any>(body.checks)) expect(check.status).toBe('up');
   });
 
-  test('ready: 503 quando só a fila de eventos não existe (as demais seguem up)', async () => {
+  test('ready: 503 when only the events queue does not exist (the others stay up)', async () => {
     const get = await start({ SQS_EVENTS_QUEUE_NAME: 'wager-events-que-nao-existe' });
     const { status, body } = await get('/health/ready');
     expect(status).toBe(503);
@@ -57,7 +57,7 @@ describe('GET /health (PostgreSQL e LocalStack reais)', () => {
     expect(body.checks.postgres.status).toBe('up');
   });
 
-  test('ready: 503 quando só a fila de entrada não existe (as demais seguem up)', async () => {
+  test('ready: 503 when only the input queue does not exist (the others stay up)', async () => {
     const get = await start({ SQS_INPUT_QUEUE_NAME: 'wager-input-que-nao-existe.fifo' });
     const { status, body } = await get('/health/ready');
     expect(status).toBe(503);
@@ -66,7 +66,7 @@ describe('GET /health (PostgreSQL e LocalStack reais)', () => {
     expect(body.checks.postgres.status).toBe('up');
   });
 
-  test('ready: 503 quando o PostgreSQL está indisponível (SQS segue up)', async () => {
+  test('ready: 503 when PostgreSQL is unavailable (SQS stays up)', async () => {
     const get = await start({ DATABASE_URL: pgUrl(UNREACHABLE.host, UNREACHABLE.port) });
     const { status, body } = await get('/health/ready');
     expect(status).toBe(503);
@@ -75,7 +75,7 @@ describe('GET /health (PostgreSQL e LocalStack reais)', () => {
     expect(body.checks.sqsEvents.status).toBe('up');
   });
 
-  test('ready: 503 quando o SQS inteiro está indisponível (PostgreSQL segue up)', async () => {
+  test('ready: 503 when the whole SQS is unavailable (PostgreSQL stays up)', async () => {
     const get = await start({ SQS_ENDPOINT: `http://${UNREACHABLE.host}:${UNREACHABLE.port}` });
     const { status, body } = await get('/health/ready');
     expect(status).toBe(503);
@@ -84,7 +84,7 @@ describe('GET /health (PostgreSQL e LocalStack reais)', () => {
     expect(body.checks.postgres.status).toBe('up');
   });
 
-  test('ready: recupera sozinho quando o PostgreSQL cai e volta (200 → 503 → 200)', async () => {
+  test('ready: recovers on its own when PostgreSQL goes down and comes back (200 → 503 → 200)', async () => {
     const real = new URL(testEnv().DATABASE_URL!);
     const proxy = await startTcpProxy({ host: real.hostname, port: Number(real.port || 5432) });
     cleanups.push(() => proxy.close());
@@ -104,7 +104,7 @@ describe('GET /health (PostgreSQL e LocalStack reais)', () => {
     expect(recovered.body.checks.postgres.status).toBe('up');
   });
 
-  test('ready: PostgreSQL pendurado vira 503 dentro do prazo, com reason=timeout', async () => {
+  test('ready: a hung PostgreSQL becomes a 503 within the deadline, with reason=timeout', async () => {
     const hole = await startBlackhole();
     cleanups.push(() => hole.close());
     const get = await start({ DATABASE_URL: pgUrl('127.0.0.1', hole.port), HEALTH_CHECK_TIMEOUT_MS: '500' });
@@ -116,7 +116,7 @@ describe('GET /health (PostgreSQL e LocalStack reais)', () => {
     expect(body.checks.postgres).toMatchObject({ status: 'down', reason: 'timeout' });
   });
 
-  test('ready: a resposta pública não expõe erros de driver, hosts, portas nem credenciais', async () => {
+  test('ready: the public response does not expose driver errors, hosts, ports or credentials', async () => {
     const get = await start({
       DATABASE_URL: pgUrl(UNREACHABLE.host, UNREACHABLE.port),
       SQS_ENDPOINT: `http://${UNREACHABLE.host}:${UNREACHABLE.port}`,
@@ -129,7 +129,7 @@ describe('GET /health (PostgreSQL e LocalStack reais)', () => {
     }
   });
 
-  test('live: 200 mesmo com todas as dependências fora (liveness não olha dependências)', async () => {
+  test('live: 200 even with every dependency down (liveness does not look at dependencies)', async () => {
     const get = await start({
       DATABASE_URL: pgUrl(UNREACHABLE.host, UNREACHABLE.port),
       SQS_ENDPOINT: `http://${UNREACHABLE.host}:${UNREACHABLE.port}`,
@@ -139,7 +139,7 @@ describe('GET /health (PostgreSQL e LocalStack reais)', () => {
     expect(body).toEqual({ status: 'ok' });
   });
 
-  test('ready: não exige autenticação (nenhum header enviado)', async () => {
+  test('ready: does not require authentication (no header sent)', async () => {
     const get = await start();
     expect((await get('/health/ready')).status).toBe(200);
   });

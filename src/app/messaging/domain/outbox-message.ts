@@ -8,6 +8,12 @@ export class InvalidOutboxTransitionError extends ProgrammingError {
   readonly code = 'INVALID_OUTBOX_TRANSITION';
 }
 
+/** O que a linha tinha quando foi lida: a base de comparação para gravar de volta sem sobrescrever outra reserva. */
+export interface PersistedOutboxState {
+  readonly attempts: number;
+  readonly nextAttemptAt: Date;
+}
+
 export interface OutboxMessageState {
   id: string;
   aggregateId: string;
@@ -32,6 +38,7 @@ export class OutboxMessage {
     private _nextAttemptAt: Date,
     private _publishedAt?: Date,
     private _lastError?: string,
+    private readonly _persistedState?: PersistedOutboxState,
   ) {}
 
   /** Nasce pronto para o publisher. */
@@ -50,7 +57,13 @@ export class OutboxMessage {
       new Date(state.nextAttemptAt),
       state.publishedAt && new Date(state.publishedAt),
       state.lastError,
+      { attempts: state.attempts, nextAttemptAt: new Date(state.nextAttemptAt) },
     );
+  }
+
+  /** Ausente em quem nasceu de `enqueue`: nunca foi lido da tabela. Imutável, ao contrário de `attempts` e `nextAttemptAt`. */
+  get persistedState(): PersistedOutboxState | undefined {
+    return this._persistedState && { attempts: this._persistedState.attempts, nextAttemptAt: new Date(this._persistedState.nextAttemptAt) };
   }
 
   get occurredAt(): Date {
@@ -95,7 +108,27 @@ export class OutboxMessage {
     this._lastError = error;
   }
 
+  /** Sucesso atrasado também vale: o evento saiu. Se outra tentativa já confirmou, fica a primeira data. */
+  confirmPublished(at: Date): void {
+    if (this.isPending()) this.markPublished(at);
+  }
+
+  /**
+   * Resultado de uma tentativa que reservou até `leaseUntil`. `attempts` conta falhas de publicação, inclusive
+   * as atrasadas, mas só a reserva vigente reagenda. `nextAttemptAt` serve de token: a linha só é reservada
+   * quando vencida e a reserva nova vale `agora + lease`, então um token já substituído nunca volta a coincidir.
+   */
+  registerFailure(leaseUntil: Date, now: Date, error?: string): void {
+    if (!this.isPending()) return;
+    if (this._nextAttemptAt.getTime() === leaseUntil.getTime()) {
+      this.scheduleRetry(now, error);
+      return;
+    }
+    this._attempts += 1;
+    this._lastError = error;
+  }
+
   private assertPending(): void {
-    if (!this.isPending()) throw new InvalidOutboxTransitionError(`evento ${this.id} já foi publicado`);
+    if (!this.isPending()) throw new InvalidOutboxTransitionError(`event ${this.id} was already published`);
   }
 }

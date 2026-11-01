@@ -14,7 +14,7 @@ import { brl, newTx, openWallet, T1, T2, WALLET_ID } from '../support/wagering-f
 const context = { eventId: 'event-1', correlationId: 'corr-1', occurredAt: T1 };
 
 describe('envelope', () => {
-  test('toJSON traz o envelope do README, com data ISO e sem causationId quando ausente', () => {
+  test('toJSON carries the README envelope, with an ISO date and no causationId when absent', () => {
     const bet = newTx(Kind.Bet);
     bet.recordObservedBalance(brl('75.00'));
     bet.markProcessed(undefined, T1);
@@ -30,14 +30,14 @@ describe('envelope', () => {
     expect('causationId' in json).toBe(false);
   });
 
-  test('causationId entra quando informado', () => {
+  test('causationId is included when provided', () => {
     const bet = newTx(Kind.Bet);
     bet.markPendingReference();
     bet.scheduleReferenceRetry(T2);
     expect(WagerTransactionPendingReference.from(bet, { ...context, causationId: 'msg-1' }).toJSON().causationId).toBe('msg-1');
   });
 
-  test('o registro da outbox usa o eventId como id e nasce pronto para publicar', () => {
+  test('the outbox record uses the eventId as its id and is born ready to publish', () => {
     const wallet = openWallet();
     const entry = wallet.debit({ entryId: 'e', transactionId: 't', money: brl('25.00'), at: T1 });
     const event = WalletBalanceChanged.from(entry, context);
@@ -52,8 +52,8 @@ describe('envelope', () => {
   });
 });
 
-describe('eventos', () => {
-  test('WalletBalanceChanged leva direção, valores como string e a versão', () => {
+describe('events', () => {
+  test('WalletBalanceChanged carries the direction, the amounts as strings and the version', () => {
     const wallet = openWallet();
     const entry = wallet.debit({ entryId: 'e', transactionId: 't', money: brl('25.00'), at: T1 });
     expect(WalletBalanceChanged.from(entry, context).data).toEqual({
@@ -67,7 +67,7 @@ describe('eventos', () => {
     });
   });
 
-  test('WagerTransactionRejected leva o failureCode e o saldo observado', () => {
+  test('WagerTransactionRejected carries the failureCode and the observed balance', () => {
     const bet = newTx(Kind.Bet);
     bet.recordObservedBalance(brl('10.00'));
     bet.reject(FailureCode.InsufficientFunds, T1);
@@ -77,7 +77,7 @@ describe('eventos', () => {
     });
   });
 
-  test('WagerTransactionProcessed aceita OPENING, para a abertura de wallet', () => {
+  test('WagerTransactionProcessed accepts OPENING, for the wallet opening', () => {
     const opening = WagerTransaction.createOpening({
       id: 'o',
       payloadHash: 'h',
@@ -91,7 +91,7 @@ describe('eventos', () => {
     expect(WagerTransactionProcessed.from(opening, context).data.kind).toBe(Kind.Opening);
   });
 
-  test('a pendência informa a próxima tentativa', () => {
+  test('the pending event reports the next attempt', () => {
     const refund = newTx(Kind.Refund, { referenceExternalTransactionId: 'ext-missing' });
     refund.markPendingReference();
     refund.scheduleReferenceRetry(T2);

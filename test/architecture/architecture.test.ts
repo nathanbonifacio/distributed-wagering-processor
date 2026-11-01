@@ -4,11 +4,11 @@ import { analyze, layerOf, moduleOf, readSourceTree, type SourceFiles } from '..
 
 const ROOT = join(import.meta.dir, '..', '..');
 
-describe('árvore real de src/', () => {
+describe('real src/ tree', () => {
   const files = readSourceTree(ROOT);
   const paths = Object.keys(files);
 
-  test('a análise enxerga a estrutura esperada (guarda contra teste vazio)', () => {
+  test('the analysis sees the expected structure (guard against an empty test)', () => {
     expect(paths.length).toBeGreaterThan(25);
     for (const expected of [
       'src/shared/domain/money.ts',
@@ -23,44 +23,44 @@ describe('árvore real de src/', () => {
     }
   });
 
-  test('módulos de funcionalidade vivem em src/app; shared e database ficam fora', () => {
+  test('feature modules live in src/app; shared and database stay outside', () => {
     expect(paths.some((p) => p.startsWith('src/wallet/') || p.startsWith('src/wagering/') || p.startsWith('src/health/') || p.startsWith('src/messaging/'))).toBe(false);
     expect(paths.some((p) => p.startsWith('src/app/shared/') || p.startsWith('src/app/database/'))).toBe(false);
   });
 
-  test('o domínio é puro: nada de Nest, MikroORM, AWS nem infraestrutura (só decimal.js, em Money)', () => {
+  test('the domain is pure: no Nest, MikroORM, AWS or infrastructure (only decimal.js, in Money)', () => {
     const domainFiles = paths.filter((p) => layerOf(p) === 'domain');
     expect(domainFiles.length).toBeGreaterThanOrEqual(8);
     expect(analyze(files).filter((v) => v.rule === 'domínio puro')).toEqual([]);
   });
 
-  test('camadas e dependências entre módulos respeitam as regras', () => {
+  test('layers and dependencies between modules follow the rules', () => {
     expect(analyze(files).filter((v) => v.rule === 'camadas' || v.rule === 'módulos')).toEqual([]);
   });
 
-  test('não há ciclos entre arquivos nem entre módulos', () => {
+  test('there are no cycles between files or between modules', () => {
     expect(analyze(files).filter((v) => v.rule.startsWith('ciclos'))).toEqual([]);
   });
 
-  test('todos os imports relativos resolvem para um arquivo existente', () => {
+  test('every relative import resolves to an existing file', () => {
     expect(analyze(files).filter((v) => v.rule === 'imports resolvidos')).toEqual([]);
   });
 
-  test('nenhuma violação de qualquer regra', () => {
+  test('no violation of any rule', () => {
     expect(analyze(files)).toEqual([]);
   });
 
-  test('wallet nunca importa wagering (a direção é wagering → wallet)', () => {
+  test('wallet never imports wagering (the direction is wagering → wallet)', () => {
     const offenders = paths.filter((p) => moduleOf(p) === 'wallet' && /app\/wagering|\.\.\/wagering/.test(files[p] ?? ''));
     expect(offenders).toEqual([]);
   });
 });
 
-describe('o verificador detecta violações (prova de que as regras não são vacuosas)', () => {
+describe('the checker detects violations (proof that the rules are not vacuous)', () => {
   const rules = (files: SourceFiles) => analyze(files).map((v) => v.rule);
   const base = { 'src/shared/domain/money.ts': "import Decimal from 'decimal.js';\nexport class Money {}" };
 
-  test('um conjunto limpo não gera violações', () => {
+  test('a clean set produces no violations', () => {
     expect(analyze({
       ...base,
       'src/app/wallet/domain/wallet.entity.ts': "import { Money } from '../../../shared/domain/money';\nexport class Wallet {}",
@@ -68,25 +68,25 @@ describe('o verificador detecta violações (prova de que as regras não são va
     })).toEqual([]);
   });
 
-  test('domínio importando Nest, MikroORM ou AWS', () => {
+  test('domain importing Nest, MikroORM or AWS', () => {
     for (const pkg of ['@nestjs/common', '@mikro-orm/core', '@aws-sdk/client-sqs', 'zod', 'node:crypto']) {
       expect(rules({ 'src/app/wallet/domain/w.entity.ts': `import { x } from '${pkg}';` })).toContain('domínio puro');
     }
   });
 
-  test('decimal.js fora de Money', () => {
+  test('decimal.js outside Money', () => {
     expect(rules({ 'src/app/wallet/domain/w.entity.ts': "import Decimal from 'decimal.js';" })).toContain('domínio puro');
     expect(rules({ 'src/shared/domain/other.ts': "import Decimal from 'decimal.js';" })).toContain('domínio puro');
   });
 
-  test('imports multilinha, type-only e export-from também são vistos', () => {
+  test('multiline, type-only and export-from imports are also seen', () => {
     expect(rules({ 'src/app/wallet/domain/a.ts': "import {\n  A,\n  B,\n} from '@nestjs/common';" })).toContain('domínio puro');
     expect(rules({ 'src/app/wallet/domain/a.ts': "import type { A } from '@nestjs/common';" })).toContain('domínio puro');
     expect(rules({ 'src/app/wallet/domain/a.ts': "export { A } from '@nestjs/common';" })).toContain('domínio puro');
     expect(rules({ 'src/app/wallet/domain/a.ts': "import '@nestjs/common';" })).toContain('domínio puro');
   });
 
-  test('domínio importando application, infrastructure ou presentation', () => {
+  test('domain importing application, infrastructure or presentation', () => {
     for (const layer of ['application', 'infrastructure', 'presentation']) {
       expect(rules({
         [`src/app/wallet/${layer}/x.ts`]: 'export const x = 1;',
@@ -95,7 +95,7 @@ describe('o verificador detecta violações (prova de que as regras não são va
     }
   });
 
-  test('domínio importando o shared/infrastructure ou o database', () => {
+  test('domain importing shared/infrastructure or the database', () => {
     expect(rules({
       'src/shared/infrastructure/config.ts': 'export const c = 1;',
       'src/app/wallet/domain/w.entity.ts': "import { c } from '../../../shared/infrastructure/config';",
@@ -106,7 +106,7 @@ describe('o verificador detecta violações (prova de que as regras não são va
     })).toContain('camadas');
   });
 
-  test('application importando infrastructure ou presentation; infrastructure importando presentation', () => {
+  test('application importing infrastructure or presentation; infrastructure importing presentation', () => {
     expect(rules({
       'src/app/wallet/infrastructure/r.ts': 'export const r = 1;',
       'src/app/wallet/application/u.ts': "import { r } from '../infrastructure/r';",
@@ -117,13 +117,13 @@ describe('o verificador detecta violações (prova de que as regras não são va
     })).toContain('camadas');
   });
 
-  test('application e presentation importando MikroORM ou AWS; infrastructure pode', () => {
+  test('application and presentation importing MikroORM or AWS; infrastructure may', () => {
     expect(rules({ 'src/app/wallet/application/u.ts': "import { EntityManager } from '@mikro-orm/core';" })).toContain('camadas');
     expect(rules({ 'src/app/wallet/presentation/c.ts': "import { SQSClient } from '@aws-sdk/client-sqs';" })).toContain('camadas');
     expect(rules({ 'src/app/wallet/infrastructure/r.ts': "import { EntityManager } from '@mikro-orm/core';" })).toEqual([]);
   });
 
-  test('wallet importando wagering (direção proibida) e módulo não declarado', () => {
+  test('wallet importing wagering (forbidden direction) and an undeclared module', () => {
     expect(rules({
       'src/app/wagering/domain/t.entity.ts': 'export class T {}',
       'src/app/wallet/domain/w.entity.ts': "import { T } from '../../wagering/domain/t.entity';",
@@ -134,7 +134,7 @@ describe('o verificador detecta violações (prova de que as regras não são va
     })).toContain('módulos');
   });
 
-  test('import profundo na infraestrutura de outro módulo; *.module.ts é permitido', () => {
+  test('deep import into another module\'s infrastructure; *.module.ts is allowed', () => {
     expect(rules({
       'src/app/messaging/infrastructure/client.ts': 'export const c = 1;',
       'src/app/health/probe.ts': "import { c } from '../messaging/infrastructure/client';",
@@ -145,14 +145,14 @@ describe('o verificador detecta violações (prova de que as regras não são va
     })).toEqual([]);
   });
 
-  test('shared importando um módulo de funcionalidade', () => {
+  test('shared importing a feature module', () => {
     expect(rules({
       'src/app/wallet/domain/w.entity.ts': 'export class W {}',
       'src/shared/domain/x.ts': "import { W } from '../../app/wallet/domain/w.entity';",
     })).toContain('módulos');
   });
 
-  test('ciclo entre arquivos e entre módulos', () => {
+  test('cycle between files and between modules', () => {
     expect(rules({
       'src/app/wallet/domain/a.ts': "import { b } from './b';\nexport const a = 1;",
       'src/app/wallet/domain/b.ts': "import { a } from './a';\nexport const b = 1;",
@@ -165,11 +165,11 @@ describe('o verificador detecta violações (prova de que as regras não são va
     expect(moduleCycle.map((v) => v.rule)).toContain('ciclos de arquivos');
   });
 
-  test('import relativo que não resolve', () => {
+  test('relative import that does not resolve', () => {
     expect(rules({ 'src/app/wallet/domain/a.ts': "import { x } from './nao-existe';" })).toContain('imports resolvidos');
   });
 
-  test('a raiz de composição pode importar qualquer módulo', () => {
+  test('the composition root can import any module', () => {
     expect(rules({
       'src/app/health/health.module.ts': 'export class H {}',
       'src/api.module.ts': "import { H } from './app/health/health.module';",

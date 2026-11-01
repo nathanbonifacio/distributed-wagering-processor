@@ -27,7 +27,7 @@ import { createTestDatabase, type TestDatabase } from '../support/test-database'
 
 // Requires `docker compose up -d postgres localstack`. Real PostgreSQL and real SQS: each test owns its
 // database and queues. Crashes are reproduced at the exact point in this process; killing real processes
-// belongs to stage 13.
+// is covered in test/concurrency/multiprocess.test.ts.
 const TIMEOUT = 45_000;
 const MAX_RECEIVE_COUNT = 3;
 const env = testEnv();
@@ -597,7 +597,7 @@ describe('out-of-order delivery', () => {
     expect(await movementsOf(db, wallet.id)).toHaveLength(0);
     expect(await eventTypes(wallet.id)).toContain('WagerTransactionPendingReference');
 
-    // Resolving it later is the retrier's job (stage 10): the referenced BET applies on its own.
+    // Resolving it later is the retrier's job (see pending-reference-retrier.test.ts): the referenced BET applies on its own.
     const bet = envelope(data(wallet, 'BET', { externalTransactionId: betId }));
     await send(bet);
     await until(() => inboxRow(bet.messageId), Boolean, 'the BET');

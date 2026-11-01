@@ -32,7 +32,7 @@ export function translatePersistenceError(error: unknown): unknown {
     TRANSIENT_DRIVER_MESSAGES.test(message ?? '');
   if (transient) {
     const reason = code === '55P03' ? 'lock_timeout' : code === '40P01' ? 'deadlock' : undefined;
-    return new TransientInfrastructureError(`falha transitória de banco (${code ?? 'conexão'})`, { cause: error, reason });
+    return new TransientInfrastructureError(`transient database failure (${code ?? 'connection'})`, { cause: error, reason });
   }
   return error;
 }

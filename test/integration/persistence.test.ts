@@ -109,7 +109,7 @@ async function waitForBlockedSession(): Promise<void> {
     if (row?.blocked > 0) return;
     await Bun.sleep(20);
   }
-  throw new Error('nenhuma sessão ficou bloqueada no prazo');
+  throw new Error('no session was blocked in time');
 }
 
 /** Uma promessa resolvida de fora, para coordenar duas transações sem depender de tempo. */
@@ -119,8 +119,8 @@ function gate() {
   return { open, opened };
 }
 
-describe('schemas e banco', () => {
-  test('cada EntitySchema mapeia exatamente as colunas da tabela criada pelas migrations', async () => {
+describe('schemas and database', () => {
+  test('each EntitySchema maps exactly the columns of the table created by the migrations', async () => {
     const metadata = db.orm.getMetadata();
     const tables = new Set<string>();
     for (const meta of metadata.getAll().values()) {
@@ -137,7 +137,7 @@ describe('schemas e banco', () => {
 });
 
 describe('Wallet', () => {
-  test('ida e volta preserva id, player, moeda, saldo, versão e datas', async () => {
+  test('round trip preserves id, player, currency, balance, version and dates', async () => {
     const wallet = await savedWallet('1000.50');
     const found = await uow.run((c) => c.wallets.findById(wallet.id));
     expect(found).toBeInstanceOf(Wallet);
@@ -150,19 +150,19 @@ describe('Wallet', () => {
     expect(found!.updatedAt).toEqual(T0);
   });
 
-  test('busca por jogador e moeda', async () => {
+  test('lookup by player and currency', async () => {
     const wallet = await savedWallet();
     const found = await uow.run((c) => c.wallets.findByPlayerAndCurrency(wallet.playerId, 'BRL'));
     expect(found?.id).toBe(wallet.id);
     expect(await uow.run((c) => c.wallets.findByPlayerAndCurrency(wallet.playerId, 'USD'))).toBeUndefined();
   });
 
-  test('inexistente devolve undefined', async () => {
+  test('nonexistent returns undefined', async () => {
     expect(await uow.run((c) => c.wallets.findById(randomUUID()))).toBeUndefined();
     expect(await uow.run((c) => c.wallets.findByIdForUpdate(randomUUID()))).toBeUndefined();
   });
 
-  test('update grava saldo, versão e data', async () => {
+  test('update writes the balance, version and date', async () => {
     const wallet = await savedWallet();
     wallet.debit({ entryId: randomUUID(), transactionId: randomUUID(), money: brl('30.10'), at: T1 });
     await uow.run((c) => c.wallets.update(wallet, 1));
@@ -173,21 +173,21 @@ describe('Wallet', () => {
     expect(found!.createdAt).toEqual(T0);
   });
 
-  test('update com versão desatualizada falha como transitório e não altera nada', async () => {
+  test('an update with a stale version fails as transient and changes nothing', async () => {
     const wallet = await savedWallet();
     wallet.credit({ entryId: randomUUID(), transactionId: randomUUID(), money: brl('1.00'), at: T1 });
     await expectError(uow.run((c) => c.wallets.update(wallet, 99)), TransientInfrastructureError);
     expect((await uow.run((c) => c.wallets.findById(wallet.id)))!.version).toBe(1);
   });
 
-  test('o valor máximo de Money volta exato', async () => {
+  test('the maximum Money value comes back exact', async () => {
     const wallet = await savedWallet('999999999999999999.99');
     expect((await uow.run((c) => c.wallets.findById(wallet.id)))!.balance.toJSON().amount).toBe('999999999999999999.99');
   });
 });
 
 describe('WagerTransaction', () => {
-  test('ida e volta preserva todos os campos de uma transação aplicada', async () => {
+  test('round trip preserves every field of an applied transaction', async () => {
     const wallet = await savedWallet();
     const bet = await savedBet(wallet);
     const refund = newTx(wallet, Kind.Refund, {
@@ -221,7 +221,7 @@ describe('WagerTransaction', () => {
     expect(found!.processedAt).toEqual(T1);
   });
 
-  test('reconstruir não dispara transição: terminal continua terminal e não aceita mudança', async () => {
+  test('rebuilding does not trigger a transition: terminal stays terminal and accepts no change', async () => {
     const wallet = await savedWallet();
     const rejected = newTx(wallet, Kind.Bet);
     rejected.recordObservedBalance(brl('100.00'));
@@ -236,7 +236,7 @@ describe('WagerTransaction', () => {
     expect(() => found!.markProcessed(undefined, T1)).toThrow();
   });
 
-  test('PENDING_REFERENCE: sem saldo observado; agendamento preservado; retomada grava a decisão', async () => {
+  test('PENDING_REFERENCE: no observed balance; schedule preserved; resumption writes the decision', async () => {
     const wallet = await savedWallet();
     const bet = await savedBet(wallet);
     const refund = newTx(wallet, Kind.Refund, { referenceExternalTransactionId: bet.externalTransactionId });
@@ -267,7 +267,7 @@ describe('WagerTransaction', () => {
     expect(decided!.attempts).toBe(1);
   });
 
-  test('saldo observado volta na moeda da wallet, mesmo se a operação for de outra moeda', async () => {
+  test('the observed balance comes back in the wallet currency, even if the operation is in another currency', async () => {
     const wallet = await savedWallet();
     const mismatch = newTx(wallet, Kind.Bet, { money: usd('5.00') });
     const outcome = new WagerProcessor().process({ wallet, transaction: mismatch, ledgerEntryId: randomUUID(), at: T1 });
@@ -280,7 +280,7 @@ describe('WagerTransaction', () => {
     expect(found!.observedBalance?.toJSON()).toEqual({ amount: '100.00', currency: 'BRL' });
   });
 
-  test('busca por id externo respeita o provider', async () => {
+  test('lookup by external id respects the provider', async () => {
     const wallet = await savedWallet();
     const bet = await savedBet(wallet);
     const found = await uow.run((c) => c.transactions.findByExternalId('provider-a', bet.externalTransactionId));
@@ -288,13 +288,13 @@ describe('WagerTransaction', () => {
     expect(await uow.run((c) => c.transactions.findByExternalId('provider-b', bet.externalTransactionId))).toBeUndefined();
   });
 
-  test('busca por chave de idempotência', async () => {
+  test('lookup by idempotency key', async () => {
     const bet = await savedBet(await savedWallet());
     expect((await uow.run((c) => c.transactions.findByIdempotencyKey(bet.idempotencyKey)))?.id).toBe(bet.id);
     expect(await uow.run((c) => c.transactions.findByIdempotencyKey('outra'))).toBeUndefined();
   });
 
-  test('reversão aplicada: encontra REFUND, ignora rejeitada e WIN', async () => {
+  test('applied reversal: finds a REFUND, ignores a rejected one and a WIN', async () => {
     const wallet = await savedWallet();
     const bet = await savedBet(wallet);
     const reference = { referenceExternalTransactionId: bet.externalTransactionId };
@@ -326,7 +326,7 @@ describe('WagerTransaction', () => {
     expect((await uow.run((c) => c.transactions.findAppliedReversal(bet.id)))?.id).toBe(refund.id);
   });
 
-  test('pendentes vencidas: só as de prazo passado, das mais antigas para as mais novas', async () => {
+  test('due pending ones: only those past their deadline, from oldest to newest', async () => {
     const wallet = await savedWallet();
     const make = async (at: Date) => {
       const tx = newTx(wallet, Kind.Refund, { referenceExternalTransactionId: 'ausente' });
@@ -346,7 +346,7 @@ describe('WagerTransaction', () => {
     expect((await uow.run((c) => c.transactions.findDuePendingIds(new Date('2001-01-01T00:00:00Z'), 1)))).toHaveLength(1);
   });
 
-  test('insertIfAbsent: chave repetida devolve false e a transação SQL segue utilizável', async () => {
+  test('insertIfAbsent: a repeated key returns false and the SQL transaction stays usable', async () => {
     const wallet = await savedWallet();
     const first = await savedBet(wallet);
     const duplicate = newTx(wallet, Kind.Bet, { idempotencyKey: first.idempotencyKey });
@@ -364,7 +364,7 @@ describe('WagerTransaction', () => {
     expect((await uow.run((c) => c.wallets.findById(after.id)))?.id).toBe(after.id);
   });
 
-  test('segunda reversão aplicada não entra, inclusive de outro tipo', async () => {
+  test('a second applied reversal is not included, even of another kind', async () => {
     const wallet = await savedWallet();
     const bet = await savedBet(wallet);
     const reversal = (kind: Kind) => {
@@ -377,7 +377,7 @@ describe('WagerTransaction', () => {
     expect(await uow.run((c) => c.transactions.insertIfAbsent(reversal(Kind.Rollback)))).toBe(false);
   });
 
-  test('update de transação terminal é recusado pelo banco', async () => {
+  test('updating a terminal transaction is refused by the database', async () => {
     const bet = await savedBet(await savedWallet());
     const error = await expectError(uow.run((c) => c.transactions.update(bet)), PersistenceConstraintError);
     expect(error.retryable).toBe(false);
@@ -393,7 +393,7 @@ describe('WalletLedgerEntry', () => {
     return { wallet, bet, entry };
   }
 
-  test('ida e volta preserva todos os campos e continua balanceado', async () => {
+  test('round trip preserves every field and stays balanced', async () => {
     const { wallet, bet, entry } = await savedEntry();
     const { entries } = await uow.run((c) => c.ledger.listByWallet(wallet.id, { limit: 10 }));
     expect(entries).toHaveLength(1);
@@ -411,7 +411,7 @@ describe('WalletLedgerEntry', () => {
     expect(found.isBalanced()).toBe(true);
   });
 
-  test('paginação por seq não repete nem pula, e totais reconstroem o saldo', async () => {
+  test('pagination by seq neither repeats nor skips, and totals rebuild the balance', async () => {
     const wallet = newWallet('10.00');
     const opening = WagerTransaction.createOpening({
       id: randomUUID(), payloadHash: HASH, walletId: wallet.id, playerId: wallet.playerId, money: brl('10.00'), createdAt: T0,
@@ -449,7 +449,7 @@ describe('WalletLedgerEntry', () => {
     expect(totals.signedTotal.equals((await uow.run((c) => c.wallets.findById(wallet.id)))!.balance)).toBe(true);
   });
 
-  test('totais: wallet sem lançamentos dá zero; só débitos dá negativo, sem perder o sinal', async () => {
+  test('totals: a wallet without entries gives zero; debits only give a negative, keeping the sign', async () => {
     const empty = await savedWallet('0.00');
     expect(await uow.run((c) => c.ledger.totals(empty.id, 'BRL'))).toMatchObject({ entryCount: 0 });
     expect((await uow.run((c) => c.ledger.totals(empty.id, 'BRL'))).signedTotal.isZero()).toBe(true);
@@ -460,14 +460,14 @@ describe('WalletLedgerEntry', () => {
     expect(signedTotal.toJSON().amount).toBe('-25.10');
   });
 
-  test('o banco recusa alterar o lançamento gravado', async () => {
+  test('the database refuses to change a stored entry', async () => {
     const { entry } = await savedEntry();
     await expect(db.sql('UPDATE wallet_ledger_entries SET amount = 1 WHERE id = ?', [entry.id])).rejects.toThrow('imutável');
   });
 });
 
-describe('unidade de trabalho', () => {
-  test('commit: tudo fica gravado junto', async () => {
+describe('unit of work', () => {
+  test('commit: everything is written together', async () => {
     const wallet = newWallet();
     const tx = newTx(wallet, Kind.Bet);
     tx.recordObservedBalance(brl('75.00'));
@@ -488,7 +488,7 @@ describe('unidade de trabalho', () => {
     expect(await db.sql('SELECT id FROM outbox_messages WHERE id = ?', [eventId])).toHaveLength(1);
   });
 
-  test('rollback: uma falha no fim desfaz wallet, transação, ledger, inbox e outbox', async () => {
+  test('rollback: a failure at the end undoes wallet, transaction, ledger, inbox and outbox', async () => {
     const wallet = newWallet();
     const tx = newTx(wallet, Kind.Bet);
     tx.recordObservedBalance(brl('75.00'));
@@ -502,8 +502,8 @@ describe('unidade de trabalho', () => {
       await c.ledger.append(entry);
       await c.inbox.recordIfNew({ consumerName: 'c', messageId, payloadHash: HASH, receivedAt: T1 });
       await c.outbox.enqueue({ id: eventId, aggregateId: wallet.id, eventType: 'E', payload: {}, occurredAt: T1, nextAttemptAt: T1 });
-      throw new Error('falha injetada');
-    })).rejects.toThrow('falha injetada');
+      throw new Error('injected failure');
+    })).rejects.toThrow('injected failure');
 
     expect(await uow.run((c) => c.wallets.findById(wallet.id))).toBeUndefined();
     expect(await read(tx.id)).toBeUndefined();
@@ -512,7 +512,7 @@ describe('unidade de trabalho', () => {
     expect(await db.sql('SELECT id FROM outbox_messages WHERE id = ?', [eventId])).toHaveLength(0);
   });
 
-  test('contexto compartilhado: o que foi escrito é visível dentro da transação e invisível fora até o commit', async () => {
+  test('shared context: what was written is visible inside the transaction and invisible outside until the commit', async () => {
     const wallet = newWallet();
     const written = gate();
     const checked = gate();
@@ -529,7 +529,7 @@ describe('unidade de trabalho', () => {
     expect((await uow.run((c) => c.wallets.findById(wallet.id)))?.id).toBe(wallet.id);
   });
 
-  test('erro de domínio atravessa intacto e desfaz a transação', async () => {
+  test('a domain error passes through intact and rolls the transaction back', async () => {
     const wallet = newWallet('1.00');
     await expectError(uow.run(async (c) => {
       await c.wallets.insert(wallet);
@@ -538,7 +538,7 @@ describe('unidade de trabalho', () => {
     expect(await uow.run((c) => c.wallets.findById(wallet.id))).toBeUndefined();
   });
 
-  test('cada run recebe repositórios próprios', async () => {
+  test('each run gets its own repositories', async () => {
     const seen: WageringPersistence[] = [];
     await uow.run(async (c) => { seen.push(c); });
     await uow.run(async (c) => { seen.push(c); });
@@ -547,8 +547,8 @@ describe('unidade de trabalho', () => {
   });
 });
 
-describe('lock pessimista por wallet', () => {
-  test('a segunda transação espera o lock e lê o saldo já efetivado', async () => {
+describe('pessimistic lock per wallet', () => {
+  test('the second transaction waits for the lock and reads the already committed balance', async () => {
     const wallet = await savedWallet('100.00');
     const release = gate();
     const locked = gate();
@@ -575,7 +575,7 @@ describe('lock pessimista por wallet', () => {
     expect(secondBalance).toBe('20.00');
   });
 
-  test('leitura anterior na mesma transação não deixa saldo velho decidir (sem Identity Map)', async () => {
+  test('an earlier read in the same transaction does not let a stale balance decide (no Identity Map)', async () => {
     const wallet = await savedWallet('100.00');
     const firstRead = gate();
     const committed = gate();
@@ -598,7 +598,7 @@ describe('lock pessimista por wallet', () => {
     expect(await reader).toBe('40.00');
   });
 
-  test('a transação também pode ser travada: a segunda leitura espera e vê a decisão gravada', async () => {
+  test('the transaction can also be locked: the second read waits and sees the recorded decision', async () => {
     const wallet = await savedWallet();
     const pending = newTx(wallet, Kind.Refund, { referenceExternalTransactionId: 'ausente' });
     pending.markPendingReference();
@@ -630,7 +630,7 @@ describe('lock pessimista por wallet', () => {
     expect(await uow.run((c) => c.transactions.findByIdForUpdate(randomUUID()))).toBeUndefined();
   });
 
-  test('wallets diferentes não se bloqueiam (sem lock global)', async () => {
+  test('different wallets do not block each other (no global lock)', async () => {
     const [a, b] = [await savedWallet(), await savedWallet()];
     const release = gate();
     const locked = gate();
@@ -647,7 +647,7 @@ describe('lock pessimista por wallet', () => {
     await holder;
   });
 
-  test('lock_timeout vira falha transitória, sem expor SQL', async () => {
+  test('lock_timeout becomes a transient failure, without exposing SQL', async () => {
     const wallet = await savedWallet();
     const impatient = new MikroOrmUnitOfWork(db.orm, createPersistenceContext, 100);
     const release = gate();
@@ -667,7 +667,7 @@ describe('lock pessimista por wallet', () => {
     await holder;
   });
 
-  test('deadlock vira falha transitória, e a outra transação conclui', async () => {
+  test('a deadlock becomes a transient failure, and the other transaction completes', async () => {
     const [a, b] = [await savedWallet(), await savedWallet()];
     const bothLocked = { first: gate(), second: gate() };
     const cross = (mine: Wallet, other: Wallet, signal: { open: () => void }, wait: Promise<void>) =>
@@ -687,7 +687,7 @@ describe('lock pessimista por wallet', () => {
     expect(rejected[0]!.reason).toBeInstanceOf(TransientInfrastructureError);
   });
 
-  test('100 / 80 / 80 com transações realmente simultâneas: um débito, um saldo final correto', async () => {
+  test('100 / 80 / 80 with truly simultaneous transactions: one debit, one correct final balance', async () => {
     const wallet = await savedWallet('100.00');
     const processor = new WagerProcessor();
     const bet = (external: string) =>
@@ -712,7 +712,7 @@ describe('lock pessimista por wallet', () => {
     expect((await uow.run((c) => c.ledger.totals(wallet.id, 'BRL'))).entryCount).toBe(1);
   });
 
-  test('20 débitos simultâneos na mesma wallet: nenhum lost update', async () => {
+  test('20 simultaneous debits on the same wallet: no lost update', async () => {
     const wallet = await savedWallet('20.00');
     await Promise.all(Array.from({ length: 20 }, () =>
       uow.run(async (c) => {
@@ -728,8 +728,8 @@ describe('lock pessimista por wallet', () => {
   });
 });
 
-describe('tradução de erros', () => {
-  test('wallet duplicada: constraint identificada, sem SQL nem valores na mensagem', async () => {
+describe('error translation', () => {
+  test('duplicate wallet: constraint identified, no SQL or values in the message', async () => {
     const wallet = await savedWallet();
     const duplicate = newWallet('5.00', wallet.playerId);
     const error = await expectError(uow.run((c) => c.wallets.insert(duplicate)), PersistenceConstraintError);
@@ -740,7 +740,7 @@ describe('tradução de erros', () => {
     expect(error.cause).toBeDefined();
   });
 
-  test('CHECK: saldo negativo gravado de fora do domínio', async () => {
+  test('CHECK: negative balance written from outside the domain', async () => {
     const wallet = Wallet.rehydrate({
       id: randomUUID(), playerId: randomUUID(), currency: 'BRL', balance: brl('1.00').negate(), version: 1, createdAt: T0, updatedAt: T0,
     });
@@ -748,14 +748,14 @@ describe('tradução de erros', () => {
     expect(error.constraint).toBe('wallets_balance_non_negative');
   });
 
-  test('FK: lançamento de transação inexistente', async () => {
+  test('FK: ledger entry of a nonexistent transaction', async () => {
     const wallet = await savedWallet();
     const entry = wallet.debit({ entryId: randomUUID(), transactionId: randomUUID(), money: brl('1.00'), at: T1 });
     const error = await expectError(uow.run((c) => c.ledger.append(entry)), PersistenceConstraintError);
     expect(error.constraint).toBe('ledger_transaction_same_wallet');
   });
 
-  test('trigger: lançamento de LOSS', async () => {
+  test('trigger: ledger entry of a LOSS', async () => {
     const wallet = await savedWallet();
     const loss = newTx(wallet, Kind.Loss);
     loss.recordObservedBalance(brl('100.00'));
@@ -765,7 +765,7 @@ describe('tradução de erros', () => {
     await expectError(uow.run((c) => c.ledger.append(entry)), PersistenceConstraintError);
   });
 
-  test('banco inacessível vira falha transitória, sem expor a URL', async () => {
+  test('an unreachable database becomes a transient failure, without exposing the URL', async () => {
     const url = withHostPort(db.url, '127.0.0.1', 1);
     const orm = new MikroORM({ clientUrl: url, entities: PERSISTENCE_SCHEMAS, discovery: { warnWhenNoEntities: false } });
     const down = new MikroOrmUnitOfWork(orm, createPersistenceContext, 100);
@@ -775,7 +775,7 @@ describe('tradução de erros', () => {
     await orm.close(true);
   });
 
-  test('banco que aceita a conexão e não responde vira falha transitória no prazo do driver', async () => {
+  test('a database that accepts the connection and does not respond becomes a transient failure within the driver deadline', async () => {
     const hole = await startBlackhole();
     const orm = new MikroORM({
       clientUrl: withHostPort(db.url, '127.0.0.1', hole.port),
@@ -789,13 +789,13 @@ describe('tradução de erros', () => {
     await orm.close(true);
   });
 
-  test('erro inesperado segue sem tradução', async () => {
-    const defect = new TypeError('defeito de programação');
+  test('an unexpected error passes through untranslated', async () => {
+    const defect = new TypeError('programming defect');
     const error = await expectError(uow.run(async () => { throw defect; }), TypeError);
     expect(error).toBe(defect);
   });
 
-  test('SQL inválido não é disfarçado de falha transitória', async () => {
+  test('invalid SQL is not disguised as a transient failure', async () => {
     let caught: unknown;
     try {
       await uow.run(() => db.orm.em.fork().getConnection().execute('SELEC 1'));
@@ -808,10 +808,10 @@ describe('tradução de erros', () => {
   });
 });
 
-describe('inbox e outbox', () => {
+describe('inbox and outbox', () => {
   const record = () => ({ consumerName: 'wager-consumer', messageId: randomUUID(), payloadHash: HASH, receivedAt: T0 });
 
-  test('inbox: nova entra, duplicata não aborta a transação, e o hash permite comparar', async () => {
+  test('inbox: a new one is accepted, a duplicate does not abort the transaction, and the hash allows comparison', async () => {
     const message = record();
     const results = await uow.run(async (c) => {
       const first = await c.inbox.recordIfNew(message);
@@ -824,7 +824,7 @@ describe('inbox e outbox', () => {
     expect(results[2]?.processedAt).toBeUndefined();
   });
 
-  test('inbox: mesma mensagem para outro consumidor é permitida; markProcessed grava a data', async () => {
+  test('inbox: the same message for another consumer is allowed; markProcessed writes the date', async () => {
     const message = record();
     await uow.run(async (c) => {
       await c.inbox.recordIfNew(message);
@@ -836,7 +836,7 @@ describe('inbox e outbox', () => {
     expect((await uow.run((c) => c.inbox.find('outro', message.messageId)))?.processedAt).toBeUndefined();
   });
 
-  test('outbox: o envelope é gravado intacto, pendente, e com o dinheiro como string', async () => {
+  test('outbox: the envelope is stored intact, pending, and with the money as a string', async () => {
     const id = randomUUID();
     const payload = { eventId: id, data: { money: { amount: '25.00', currency: 'BRL' } } };
     await uow.run((c) => c.outbox.enqueue({ id, aggregateId: randomUUID(), eventType: 'WalletBalanceChanged', payload, occurredAt: T0, nextAttemptAt: T1 }));
@@ -848,8 +848,8 @@ describe('inbox e outbox', () => {
   });
 });
 
-describe('injeção de dependências', () => {
-  test('o Nest entrega o UNIT_OF_WORK por token, ligado ao banco configurado', async () => {
+describe('dependency injection', () => {
+  test('Nest delivers the UNIT_OF_WORK by token, bound to the configured database', async () => {
     @Module({ imports: [ConfigModule.register(testEnv({ DATABASE_URL: db.url })), PersistenceModule] })
     class TestModule {}
     const app = await NestFactory.createApplicationContext(TestModule, { logger: false });

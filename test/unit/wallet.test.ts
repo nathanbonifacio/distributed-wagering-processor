@@ -7,8 +7,8 @@ import { brl, openWallet, PLAYER_ID, T0, T1, usd, WALLET_ID } from '../support/w
 
 const movement = (money: Money, entryId = 'entry-1') => ({ entryId, transactionId: 'tx-1', money, at: T1 });
 
-describe('abertura', () => {
-  test('com saldo positivo: moeda vem do saldo, versão 1, datas iguais', () => {
+describe('opening', () => {
+  test('with a positive balance: currency comes from the balance, version 1, equal dates', () => {
     const wallet = openWallet('1000.00');
     expect(wallet.id).toBe(WALLET_ID);
     expect(wallet.playerId).toBe(PLAYER_ID);
@@ -19,24 +19,24 @@ describe('abertura', () => {
     expect(wallet.updatedAt).toEqual(T0);
   });
 
-  test('com saldo zero', () => {
+  test('with a zero balance', () => {
     const wallet = openWallet('0.00');
     expect(wallet.balance.isZero()).toBe(true);
     expect(wallet.version).toBe(1);
   });
 
-  test('saldo negativo é inválido', () => {
+  test('a negative balance is invalid', () => {
     expect(() =>
       Wallet.open({ id: WALLET_ID, playerId: PLAYER_ID, initialBalance: brl('1.00').negate(), at: T0 }),
     ).toThrow(InvalidWalletError);
   });
 
-  test('id e playerId são obrigatórios', () => {
+  test('id and playerId are required', () => {
     expect(() => Wallet.open({ id: '', playerId: PLAYER_ID, initialBalance: brl('1.00'), at: T0 })).toThrow(InvalidWalletError);
     expect(() => Wallet.open({ id: WALLET_ID, playerId: '', initialBalance: brl('1.00'), at: T0 })).toThrow(InvalidWalletError);
   });
 
-  test('openingEntry: CREDIT de 0 ao saldo, na versão 1, sem alterar a wallet', () => {
+  test('openingEntry: CREDIT from 0 to the balance, at version 1, without changing the wallet', () => {
     const wallet = openWallet('1000.00');
     const entry = wallet.openingEntry({ entryId: 'entry-0', transactionId: 'tx-0', at: T0 });
     expect(entry.direction).toBe(LedgerDirection.Credit);
@@ -48,7 +48,7 @@ describe('abertura', () => {
     expect(wallet.balance.equals(brl('1000.00'))).toBe(true);
   });
 
-  test('openingEntry exige saldo positivo e versão 1', () => {
+  test('openingEntry requires a positive balance and version 1', () => {
     const props = { entryId: 'e', transactionId: 't', at: T0 };
     expect(() => openWallet('0.00').openingEntry(props)).toThrow(InvalidWalletError);
     const moved = openWallet('10.00');
@@ -57,8 +57,8 @@ describe('abertura', () => {
   });
 });
 
-describe('débito e crédito', () => {
-  test('débito reduz o saldo, sobe a versão e devolve o lançamento DEBIT', () => {
+describe('debit and credit', () => {
+  test('a debit reduces the balance, bumps the version and returns the DEBIT entry', () => {
     const wallet = openWallet('100.00');
     const entry = wallet.debit(movement(brl('80.00')));
     expect(wallet.balance.equals(brl('20.00'))).toBe(true);
@@ -73,7 +73,7 @@ describe('débito e crédito', () => {
     expect(entry.balanceAfter.equals(brl('20.00'))).toBe(true);
   });
 
-  test('crédito aumenta o saldo, sobe a versão e devolve o lançamento CREDIT', () => {
+  test('a credit increases the balance, bumps the version and returns the CREDIT entry', () => {
     const wallet = openWallet('100.00');
     const entry = wallet.credit(movement(brl('0.10')));
     expect(wallet.balance.equals(brl('100.10'))).toBe(true);
@@ -82,14 +82,14 @@ describe('débito e crédito', () => {
     expect(entry.balanceAfter.equals(wallet.balance)).toBe(true);
   });
 
-  test('o débito pode zerar o saldo', () => {
+  test('a debit can bring the balance to zero', () => {
     const wallet = openWallet('100.00');
     wallet.debit(movement(brl('100.00')));
     expect(wallet.balance.isZero()).toBe(true);
     expect(wallet.balance.isNegative()).toBe(false);
   });
 
-  test('a versão incrementa uma vez por movimento', () => {
+  test('the version increments once per movement', () => {
     const wallet = openWallet('100.00');
     wallet.debit(movement(brl('10.00')));
     wallet.credit(movement(brl('5.00')));
@@ -98,7 +98,7 @@ describe('débito e crédito', () => {
     expect(wallet.balance.equals(brl('94.00'))).toBe(true);
   });
 
-  test('saldo insuficiente lança erro e não altera nada', () => {
+  test('insufficient funds throws and changes nothing', () => {
     const wallet = openWallet('100.00');
     expect(() => wallet.debit(movement(brl('100.01')))).toThrow(InsufficientFundsError);
     expect(wallet.balance.equals(brl('100.00'))).toBe(true);
@@ -106,7 +106,7 @@ describe('débito e crédito', () => {
     expect(wallet.updatedAt).toEqual(T0);
   });
 
-  test('moeda diferente lança erro e não altera nada', () => {
+  test('a different currency throws and changes nothing', () => {
     const wallet = openWallet('100.00');
     expect(() => wallet.debit(movement(usd('1.00')))).toThrow(CurrencyMismatchError);
     expect(() => wallet.credit(movement(usd('1.00')))).toThrow(CurrencyMismatchError);
@@ -115,7 +115,7 @@ describe('débito e crédito', () => {
     expect(wallet.version).toBe(1);
   });
 
-  test('valor zero ou negativo é recusado sem alterar nada', () => {
+  test('a zero or negative amount is refused without changing anything', () => {
     const wallet = openWallet('100.00');
     expect(() => wallet.debit(movement(brl('0.00')))).toThrow(InvalidLedgerEntryError);
     expect(() => wallet.credit(movement(brl('0.00')))).toThrow(InvalidLedgerEntryError);
@@ -125,7 +125,7 @@ describe('débito e crédito', () => {
     expect(wallet.version).toBe(1);
   });
 
-  test('canDebit e canCredit consultam sem alterar', () => {
+  test('canDebit and canCredit query without changing anything', () => {
     const wallet = openWallet('100.00');
     expect(wallet.canDebit(brl('100.00'))).toBe(true);
     expect(wallet.canDebit(brl('100.01'))).toBe(false);
@@ -135,8 +135,8 @@ describe('débito e crédito', () => {
   });
 });
 
-describe('encapsulamento e reidratação', () => {
-  test('alterar os Date recebidos ou expostos não afeta a wallet', () => {
+describe('encapsulation and rehydration', () => {
+  test('changing the received or exposed Date objects does not affect the wallet', () => {
     const at = new Date(T0);
     const wallet = Wallet.open({ id: WALLET_ID, playerId: PLAYER_ID, initialBalance: brl('1.00'), at });
     at.setFullYear(2000);
@@ -146,7 +146,7 @@ describe('encapsulamento e reidratação', () => {
     expect(wallet.createdAt).toEqual(T0);
   });
 
-  test('rehydrate reconstrói o estado sem revalidar', () => {
+  test('rehydrate rebuilds the state without revalidating', () => {
     const wallet = Wallet.rehydrate({
       id: WALLET_ID,
       playerId: PLAYER_ID,
@@ -161,7 +161,7 @@ describe('encapsulamento e reidratação', () => {
     expect(wallet.updatedAt).toEqual(T1);
   });
 
-  test('wallet reidratada continua aplicando as regras', () => {
+  test('a rehydrated wallet keeps applying the rules', () => {
     const wallet = Wallet.rehydrate({
       id: WALLET_ID,
       playerId: PLAYER_ID,

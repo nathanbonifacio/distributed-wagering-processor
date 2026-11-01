@@ -8,7 +8,7 @@ import { INTERNAL_PROVIDER_ID, WagerTransactionKind as Kind } from '../domain/wa
  * OPENING e o provider reservado não passam. As regras por kind continuam em WagerTransaction.create.
  */
 export const wagerPayloadSchema = z.strictObject({
-  providerId: identifierSchema.refine((id) => id !== INTERNAL_PROVIDER_ID, `o provider "${INTERNAL_PROVIDER_ID}" é reservado`),
+  providerId: identifierSchema.refine((id) => id !== INTERNAL_PROVIDER_ID, `the provider "${INTERNAL_PROVIDER_ID}" is reserved`),
   externalTransactionId: identifierSchema,
   playerId: uuidSchema,
   walletId: uuidSchema,

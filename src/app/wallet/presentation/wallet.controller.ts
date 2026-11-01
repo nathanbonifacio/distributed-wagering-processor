@@ -19,7 +19,7 @@ const ledgerQuerySchema = z.strictObject({
     .string()
     .regex(/^[1-9]\d{0,2}$/)
     .transform(Number)
-    .refine((limit) => limit <= LEDGER_PAGE_MAX, `o limite máximo é ${LEDGER_PAGE_MAX}`)
+    .refine((limit) => limit <= LEDGER_PAGE_MAX, `the maximum limit is ${LEDGER_PAGE_MAX}`)
     .optional(),
 });
 
@@ -51,7 +51,7 @@ function reconciliationResponse(report: ReconciliationReport) {
   };
 }
 
-const walletNotFound = () => new NotFoundException({ code: 'WALLET_NOT_FOUND', message: 'wallet não encontrada' });
+const walletNotFound = () => new NotFoundException({ code: 'WALLET_NOT_FOUND', message: 'wallet not found' });
 
 @Controller('wallets')
 @UseGuards(ProviderAuthGuard)
@@ -75,7 +75,7 @@ export class WalletController {
     const { cursor, limit = LEDGER_PAGE_DEFAULT } = parseRequest(ledgerQuerySchema, rawQuery);
     const afterSeq = cursor === undefined ? undefined : decodeLedgerCursor(cursor);
     if (cursor !== undefined && afterSeq === undefined) {
-      throw new BadRequestException({ code: 'INVALID_PAYLOAD', message: 'cursor inválido' });
+      throw new BadRequestException({ code: 'INVALID_PAYLOAD', message: 'invalid cursor' });
     }
 
     const page = await this.queries.listLedger(walletId, { afterSeq, limit });

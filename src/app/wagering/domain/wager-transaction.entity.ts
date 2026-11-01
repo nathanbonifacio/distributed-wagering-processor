@@ -118,10 +118,10 @@ export class WagerTransaction {
   /** Operação externa. Nasce em PENDING e valida a exigência de referência por kind. */
   static create(props: CreateWagerTransactionProps): WagerTransaction {
     if (props.kind === WagerTransactionKind.Opening) {
-      throw new InvalidWagerTransactionError('OPENING é interno e não pode ser submetido');
+      throw new InvalidWagerTransactionError('OPENING is internal and cannot be submitted');
     }
     if (props.providerId === INTERNAL_PROVIDER_ID) {
-      throw new InvalidWagerTransactionError(`o provider "${INTERNAL_PROVIDER_ID}" é reservado`);
+      throw new InvalidWagerTransactionError(`the provider "${INTERNAL_PROVIDER_ID}" is reserved`);
     }
     return WagerTransaction.build(props);
   }
@@ -182,25 +182,25 @@ export class WagerTransaction {
       props.gameId,
     ];
     if (required.some((value) => !value)) {
-      throw new InvalidWagerTransactionError('identificadores e payloadHash são obrigatórios');
+      throw new InvalidWagerTransactionError('identifiers and payloadHash are required');
     }
 
     const reference = props.referenceExternalTransactionId;
     const allowedReferences = ALLOWED_REFERENCE_KINDS[props.kind];
     if ((props.kind === WagerTransactionKind.Refund || props.kind === WagerTransactionKind.Rollback) && !reference) {
-      throw new InvalidWagerTransactionError(`${props.kind} exige referenceExternalTransactionId`);
+      throw new InvalidWagerTransactionError(`${props.kind} requires referenceExternalTransactionId`);
     }
     if (reference !== undefined && (!allowedReferences || !reference)) {
-      throw new InvalidWagerTransactionError(`${props.kind} não aceita referência`);
+      throw new InvalidWagerTransactionError(`${props.kind} does not accept a reference`);
     }
     if (reference === props.externalTransactionId) {
-      throw new InvalidWagerTransactionError('uma transação não pode referenciar a si mesma');
+      throw new InvalidWagerTransactionError('a transaction cannot reference itself');
     }
 
     // Interpretação: só LOSS pode ter valor zero, porque não move saldo.
     const validAmount = props.kind === WagerTransactionKind.Loss ? !props.money.isNegative() : props.money.isPositive();
     if (!validAmount) {
-      throw new InvalidWagerTransactionError(`valor inválido para ${props.kind}`);
+      throw new InvalidWagerTransactionError(`invalid amount for ${props.kind}`);
     }
 
     return new WagerTransaction(
@@ -257,7 +257,7 @@ export class WagerTransaction {
     this.assertCanTransitionTo(WagerTransactionStatus.Processed);
     if ((referenceTransactionId === undefined) !== (this.referenceExternalTransactionId === undefined)) {
       throw new InvalidTransactionStateError(
-        `${this.id}: o id interno da referência deve acompanhar a referência externa`,
+        `${this.id}: the internal reference id must accompany the external reference`,
       );
     }
     this._referenceTransactionId = referenceTransactionId;
@@ -277,7 +277,7 @@ export class WagerTransaction {
    */
   scheduleReferenceRetry(nextAttemptAt: Date): void {
     if (this._status !== WagerTransactionStatus.PendingReference) {
-      throw new InvalidTransactionStateError(`${this.id}: só PENDING_REFERENCE é agendada, não ${this._status}`);
+      throw new InvalidTransactionStateError(`${this.id}: only PENDING_REFERENCE is scheduled, not ${this._status}`);
     }
     if (this._nextAttemptAt) this._attempts += 1;
     this._nextAttemptAt = new Date(nextAttemptAt);
@@ -303,7 +303,7 @@ export class WagerTransaction {
   reject(code: FailureCode, at: Date): void {
     this.assertCanTransitionTo(WagerTransactionStatus.Rejected);
     if (!isRejectionCode(code)) {
-      throw new InvalidTransactionStateError(`${code} não é um código de rejeição`);
+      throw new InvalidTransactionStateError(`${code} is not a rejection code`);
     }
     this._failureCode = code;
     this._status = WagerTransactionStatus.Rejected;
@@ -314,7 +314,7 @@ export class WagerTransaction {
   fail(code: FailureCode, at: Date): void {
     this.assertCanTransitionTo(WagerTransactionStatus.Failed);
     if (!isFailedCode(code)) {
-      throw new InvalidTransactionStateError(`${code} não é um código de falha de infraestrutura`);
+      throw new InvalidTransactionStateError(`${code} is not an infrastructure failure code`);
     }
     this._failureCode = code;
     this._status = WagerTransactionStatus.Failed;
@@ -325,7 +325,7 @@ export class WagerTransaction {
   /** Registra o saldo visto na decisão, para a regra 7 (replay devolve o saldo da época). */
   recordObservedBalance(balance: Money): void {
     if (this.isTerminal()) {
-      throw new InvalidTransactionStateError(`${this.id}: estado terminal ${this._status} não muda`);
+      throw new InvalidTransactionStateError(`${this.id}: terminal state ${this._status} does not change`);
     }
     this._observedBalance = balance;
   }
@@ -356,13 +356,13 @@ export class WagerTransaction {
       case WagerTransactionKind.Opening:
         return LedgerDirection.Credit;
       case WagerTransactionKind.Loss:
-        throw new InvalidTransactionStateError('LOSS não gera lançamento');
+        throw new InvalidTransactionStateError('LOSS does not produce a ledger entry');
       case WagerTransactionKind.Rollback:
         if (reference?.kind === WagerTransactionKind.Bet) return LedgerDirection.Credit;
         if (reference?.kind === WagerTransactionKind.Win || reference?.kind === WagerTransactionKind.Refund) {
           return LedgerDirection.Debit;
         }
-        throw new InvalidTransactionStateError('ROLLBACK exige referência a BET, WIN ou REFUND');
+        throw new InvalidTransactionStateError('ROLLBACK requires a reference to a BET, WIN or REFUND');
     }
   }
 
@@ -415,7 +415,7 @@ export class WagerTransaction {
 
   private assertCanTransitionTo(next: WagerTransactionStatus): void {
     if (!TRANSITIONS[this._status].includes(next)) {
-      throw new InvalidTransactionStateError(`${this.id}: transição inválida de ${this._status} para ${next}`);
+      throw new InvalidTransactionStateError(`${this.id}: invalid transition from ${this._status} to ${next}`);
     }
   }
 }

@@ -8,18 +8,18 @@ import { createTestDatabase, schemaObjects, type TestDatabase } from '../support
 const TABLES = ['inbox_messages', 'outbox_messages', 'wager_transactions', 'wallet_ledger_entries', 'wallets'];
 const ROOT = `${import.meta.dir}/../..`;
 
-describe('migrations em um banco limpo', () => {
+describe('migrations on a clean database', () => {
   let db: TestDatabase;
   beforeEach(async () => { db = await createTestDatabase(); });
   afterEach(async () => { await db.drop(); });
 
-  test('banco novo: todas pendentes e nenhuma tabela', async () => {
+  test('new database: all pending and no table', async () => {
     const pending = await db.orm.migrator.getPending();
     expect(pending.map((m) => m.name)).toEqual(migrationsList.map((m) => m.name));
     expect((await schemaObjects(db)).tables).toEqual([]);
   });
 
-  test('up cria o schema esperado; a tabela do spike não sobrevive', async () => {
+  test('up creates the expected schema; the spike table does not survive', async () => {
     await db.orm.migrator.up();
     const objects = await schemaObjects(db);
     expect(objects.tables).toEqual(TABLES);
@@ -40,7 +40,7 @@ describe('migrations em um banco limpo', () => {
     expect(await db.orm.migrator.getPending()).toEqual([]);
   });
 
-  test('colunas de dinheiro são NUMERIC(20,2); nenhuma coluna usa ponto flutuante', async () => {
+  test('money columns are NUMERIC(20,2); no column uses floating point', async () => {
     await db.orm.migrator.up();
     const columns = await db.sql(`
       SELECT table_name || '.' || column_name AS name, data_type, numeric_precision, numeric_scale
@@ -62,7 +62,7 @@ describe('migrations em um banco limpo', () => {
     }
   });
 
-  test('índice parcial de reversão é único e restrito a reversões aplicadas', async () => {
+  test('the partial reversal index is unique and restricted to applied reversals', async () => {
     await db.orm.migrator.up();
     const [index] = await db.sql(`SELECT indexdef FROM pg_indexes WHERE indexname = 'wager_tx_single_reversal'`);
     expect(index?.indexdef).toContain('UNIQUE');
@@ -71,7 +71,7 @@ describe('migrations em um banco limpo', () => {
     expect(index?.indexdef).toContain('PROCESSED');
   });
 
-  test('down de tudo remove todos os objetos; up recria um schema idêntico', async () => {
+  test('down of everything removes every object; up recreates an identical schema', async () => {
     await db.orm.migrator.up();
     const before = await schemaObjects(db);
     await db.orm.migrator.down({ to: 0 });
@@ -81,7 +81,7 @@ describe('migrations em um banco limpo', () => {
     expect(await schemaObjects(db)).toEqual(before);
   });
 
-  test('migrar com dados existentes: preenche a moeda do saldo observado, mesmo em linhas terminais', async () => {
+  test('migrating with existing data: fills in the observed balance currency, even on terminal rows', async () => {
     await db.orm.migrator.up({ to: 'Migration20261031000007_create_integrity_triggers' });
     const [walletId, playerId, txId] = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()];
     const now = '2026-10-31T12:00:00.000Z';
@@ -101,7 +101,7 @@ describe('migrations em um banco limpo', () => {
     await expect(db.sql('UPDATE wager_transactions SET attempts = 1 WHERE id = ?', [txId])).rejects.toThrow('estado terminal');
   });
 
-  test('cada migration é reversível isoladamente, da última à primeira', async () => {
+  test('each migration is individually reversible, from the last to the first', async () => {
     await db.orm.migrator.up();
     const states: Awaited<ReturnType<typeof schemaObjects>>[] = [];
     for (let i = 0; i < migrationsList.length; i++) {
@@ -117,7 +117,7 @@ describe('migrations em um banco limpo', () => {
   });
 });
 
-describe('script de migração real (bun run src/database/migrate.ts)', () => {
+describe('real migration script (bun run src/database/migrate.ts)', () => {
   let db: TestDatabase;
   beforeEach(async () => { db = await createTestDatabase(); });
   afterEach(async () => { await db.drop(); });
@@ -133,7 +133,7 @@ describe('script de migração real (bun run src/database/migrate.ts)', () => {
     return { stdout, code };
   };
 
-  test('up aplica todas; repetir é seguro; down reverte só a última', async () => {
+  test('up applies all; repeating is safe; down reverts only the last one', async () => {
     const first = await migrate('up');
     expect(first.code).toBe(0);
     expect((await schemaObjects(db)).tables).toEqual(TABLES);
@@ -150,11 +150,11 @@ describe('script de migração real (bun run src/database/migrate.ts)', () => {
     expect(await db.orm.migrator.getPending()).toHaveLength(1);
   });
 
-  test('direção inválida falha sem tocar no banco', async () => {
+  test('an invalid direction fails without touching the database', async () => {
     expect((await migrate('sideways')).code).toBe(2);
   });
 
-  test('migrar não deixa arquivo de snapshot no projeto', async () => {
+  test('migrating leaves no snapshot file in the project', async () => {
     expect((await migrate('up')).code).toBe(0);
     expect((await migrate('down')).code).toBe(0);
     expect(readdirSync(ROOT, { recursive: true, encoding: 'utf8' }).filter((path) => path.includes(db.name))).toEqual([]);

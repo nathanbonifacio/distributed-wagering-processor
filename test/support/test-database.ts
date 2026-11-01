@@ -53,7 +53,7 @@ export async function createTestDatabase(options: {
     sql: (query, params) => orm.em.fork().getConnection().execute(query, (params ?? []) as any[]) as Promise<any[]>,
     drop: async () => {
       await orm.close(true);
-      if (!name.startsWith(PREFIX)) throw new Error(`recusando apagar o banco ${name}`);
+      if (!name.startsWith(PREFIX)) throw new Error(`refusing to drop database ${name}`);
       await admin.em.fork().getConnection().execute(`DROP DATABASE "${name}" WITH (FORCE)`);
       await admin.close(true);
     },

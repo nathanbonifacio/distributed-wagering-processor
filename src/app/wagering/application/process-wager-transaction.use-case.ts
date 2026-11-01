@@ -236,7 +236,7 @@ export class ProcessWagerTransaction {
     // wallet informada não exista.
     const existing = await this.findExisting(persistence, transaction);
     if (existing) return existing;
-    if (!wallet) throw new WalletNotFoundError(`wallet ${transaction.walletId} não existe`);
+    if (!wallet) throw new WalletNotFoundError(`wallet ${transaction.walletId} does not exist`);
 
     const versionBefore = wallet.version;
     const at = this.clock.now();
@@ -257,7 +257,7 @@ export class ProcessWagerTransaction {
       this.telemetry.uniqueCollision({ walletId: transaction.walletId, providerId: transaction.providerId });
       const winner = await this.findExisting(persistence, transaction);
       if (winner) return winner;
-      throw new TransientInfrastructureError(`transação ${transaction.id} colidiu em uma chave única`);
+      throw new TransientInfrastructureError(`transaction ${transaction.id} collided on a unique key`);
     }
 
     await this.persistEffects(persistence, wallet, versionBefore, outcome);
@@ -273,13 +273,13 @@ export class ProcessWagerTransaction {
     const byKey = await persistence.transactions.findByIdempotencyKey(transaction.idempotencyKey);
     if (byKey) {
       if (byKey.matchesPayload(transaction.payloadHash)) return resultOf(byKey, true);
-      throw new IdempotencyConflictError('a Idempotency-Key já foi usada com outro payload');
+      throw new IdempotencyConflictError('the Idempotency-Key was already used with a different payload');
     }
     const byExternalId = await persistence.transactions.findByExternalId(
       transaction.providerId,
       transaction.externalTransactionId,
     );
-    if (byExternalId) throw new IdempotencyConflictError('o externalTransactionId já foi usado com outra Idempotency-Key');
+    if (byExternalId) throw new IdempotencyConflictError('the externalTransactionId was already used with a different Idempotency-Key');
     return undefined;
   }
 

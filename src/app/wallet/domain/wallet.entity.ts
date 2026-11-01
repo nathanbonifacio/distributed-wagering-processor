@@ -50,10 +50,10 @@ export class Wallet {
 
   static open(props: OpenWalletProps): Wallet {
     if (!props.id || !props.playerId) {
-      throw new InvalidWalletError('id e playerId são obrigatórios');
+      throw new InvalidWalletError('id and playerId are required');
     }
     if (props.initialBalance.isNegative()) {
-      throw new InvalidWalletError('o saldo inicial não pode ser negativo');
+      throw new InvalidWalletError('the initial balance cannot be negative');
     }
     return new Wallet(
       props.id,
@@ -116,7 +116,7 @@ export class Wallet {
   debit(movement: WalletMovement): WalletLedgerEntry {
     this.assertSameCurrency(movement.money);
     if (this._balance.isLessThan(movement.money)) {
-      throw new InsufficientFundsError(`saldo insuficiente na wallet ${this.id}`);
+      throw new InsufficientFundsError(`insufficient funds in wallet ${this.id}`);
     }
     return this.apply(LedgerDirection.Debit, this._balance.subtract(movement.money), movement);
   }
@@ -132,7 +132,7 @@ export class Wallet {
    */
   openingEntry(props: OpeningEntryProps): WalletLedgerEntry {
     if (this._version !== 1 || !this._balance.isPositive()) {
-      throw new InvalidWalletError('lançamento de abertura exige wallet na versão 1 com saldo positivo');
+      throw new InvalidWalletError('the opening entry requires a wallet at version 1 with a positive balance');
     }
     return WalletLedgerEntry.create({
       id: props.entryId,
@@ -169,7 +169,7 @@ export class Wallet {
 
   private assertSameCurrency(money: Money): void {
     if (money.currency !== this.currency) {
-      throw new CurrencyMismatchError(`moeda ${money.currency} incompatível com a wallet em ${this.currency}`);
+      throw new CurrencyMismatchError(`currency ${money.currency} is incompatible with the wallet currency ${this.currency}`);
     }
   }
 }

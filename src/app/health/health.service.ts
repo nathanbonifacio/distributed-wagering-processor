@@ -59,7 +59,7 @@ export class HealthService {
     } catch (err) {
       const reason = err instanceof TimeoutError ? 'timeout' : 'unavailable';
       const detail = redactSecrets(err instanceof Error ? err.message : String(err));
-      this.logger.warn(`readiness: dependência "${probe.name}" indisponível (${reason}): ${detail}`);
+      this.logger.warn(`readiness: dependency "${probe.name}" unavailable (${reason}): ${detail}`);
       return [probe.name, { status: 'down', latencyMs: elapsed(), reason }];
     }
   }

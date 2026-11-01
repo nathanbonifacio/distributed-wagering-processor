@@ -5,7 +5,7 @@ import { migrationsList } from './migrations';
 
 const direction = process.argv[2];
 if (direction !== 'up' && direction !== 'down') {
-  console.error('uso: bun run src/database/migrate.ts <up|down>');
+  console.error('usage: bun run src/database/migrate.ts <up|down>');
   process.exit(2);
 }
 

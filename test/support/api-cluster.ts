@@ -12,7 +12,7 @@ export interface Reply {
 /**
  * Instâncias independentes da API real sobre o mesmo banco: cada uma com o próprio pool e o próprio
  * MikroORM, e nada em comum além do PostgreSQL. Rodam no mesmo processo; a prova com processos
- * separados é da Etapa 13.
+ * separados está em test/support/app-process.ts.
  */
 export interface ApiCluster {
   urls: string[];
@@ -89,7 +89,7 @@ export async function waitForBlockedSessions(db: TestDatabase, count: number): P
     if (blocked >= count) return blocked;
     await Bun.sleep(10);
   }
-  throw new Error(`só ${blocked} de ${count} sessões ficaram bloqueadas no prazo`);
+  throw new Error(`only ${blocked} of ${count} sessions were blocked in time`);
 }
 
 export async function countBlockedSessions(db: TestDatabase): Promise<number> {
