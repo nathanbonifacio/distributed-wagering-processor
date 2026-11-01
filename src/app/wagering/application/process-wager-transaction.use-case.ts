@@ -18,14 +18,12 @@ import {
   WagerTransactionRejected,
 } from '../domain/events/wager-transaction-events';
 import { FailureCode } from '../domain/failure-code';
+import { ReferenceRetryPolicy } from '../domain/reference-retry-policy';
 import type { WagerOutcome, WagerProcessor } from '../domain/wager-processor';
-import { WagerTransaction, type WagerTransactionKind, type WagerTransactionStatus } from '../domain/wager-transaction.entity';
+import { WagerTransaction, type WagerTransactionKind, WagerTransactionStatus } from '../domain/wager-transaction.entity';
 import { IdempotencyConflictError } from '../domain/wagering-errors';
 import type { WageringPersistence } from './ports/wagering-persistence.port';
 import { wagerPayloadHash } from './wager-payload-hash';
-
-/** Primeiro intervalo de min(5s·2^n, 5min). O retrier da Etapa 10 assume a partir daqui. */
-const FIRST_REFERENCE_RETRY_DELAY_MS = 5000;
 
 /** Mesma entrada para HTTP e SQS; validar o formato dos campos é do adaptador. */
 export interface ProcessWagerCommand {
@@ -42,6 +40,8 @@ export interface ProcessWagerCommand {
   correlationId?: string;
   causationId?: string;
 }
+
+type EventTrace = Pick<ProcessWagerCommand, 'correlationId' | 'causationId'>;
 
 /** Entrega pela fila: o inbox entra na mesma transação da operação. */
 export interface MessageDelivery {
@@ -75,6 +75,7 @@ export class ProcessWagerTransaction {
     private readonly processor: WagerProcessor,
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
+    private readonly referenceRetry: ReferenceRetryPolicy = ReferenceRetryPolicy.DEFAULT,
   ) {}
 
   async execute(command: ProcessWagerCommand, delivery?: MessageDelivery): Promise<ProcessWagerResult> {
@@ -89,6 +90,66 @@ export class ProcessWagerTransaction {
     } catch (error) {
       if (error instanceof PermanentInfrastructureError) await this.recordFailure(command);
       throw error;
+    }
+  }
+
+  /**
+   * Nova tentativa de uma PENDING_REFERENCE vencida, sobre a mesma linha e com as mesmas regras. Devolve
+   * undefined se não havia nada a fazer: outra instância chegou antes ou a tentativa foi reagendada.
+   */
+  async resumePending(transactionId: string): Promise<ProcessWagerResult | undefined> {
+    try {
+      return await this.unitOfWork.run((persistence) => this.resume(persistence, transactionId));
+    } catch (error) {
+      if (error instanceof PermanentInfrastructureError) await this.recordResumeFailure(transactionId);
+      throw error;
+    }
+  }
+
+  /** Mesma ordem de lock do fluxo normal: wallet, depois a linha. Sob os dois locks, a decisão é única. */
+  private async resume(persistence: WageringPersistence, transactionId: string): Promise<ProcessWagerResult | undefined> {
+    const found = await persistence.transactions.findById(transactionId);
+    if (!found) return undefined;
+    const wallet = await persistence.wallets.findByIdForUpdate(found.walletId);
+    const transaction = await persistence.transactions.findByIdForUpdate(transactionId);
+    const at = this.clock.now();
+    if (!wallet || !transaction?.isReferenceRetryDue(at)) return undefined;
+
+    const versionBefore = wallet.version;
+    const references = await this.loadReference(persistence, transaction);
+    let outcome = this.processor.process({ wallet, transaction, ...references, ledgerEntryId: this.ids.next(), at });
+    if (outcome.outcome === 'PENDING_REFERENCE') {
+      const attemptsMade = transaction.attempts + 1;
+      if (!this.referenceRetry.isExhausted(attemptsMade)) {
+        // Sem evento: WagerTransactionPendingReference marca só a entrada em pendência.
+        transaction.scheduleReferenceRetry(this.referenceRetry.nextAttemptAt(attemptsMade, at));
+        await persistence.transactions.update(transaction);
+        return resultOf(transaction, false);
+      }
+      outcome = this.processor.expireReference(wallet, transaction, references.reference, at);
+    }
+
+    // A linha muda antes do ledger: o trigger do lançamento confere o estado da transação.
+    await persistence.transactions.update(transaction);
+    await this.persistEffects(persistence, wallet, versionBefore, outcome);
+    await this.enqueueEvents(persistence, outcome, {}, at);
+    return resultOf(transaction, false);
+  }
+
+  /** Equivalente a recordFailure para a linha que já existe. Nunca conta como tentativa de referência. */
+  private async recordResumeFailure(transactionId: string): Promise<void> {
+    try {
+      await this.unitOfWork.run(async (persistence) => {
+        const found = await persistence.transactions.findById(transactionId);
+        if (!found) return;
+        await persistence.wallets.findByIdForUpdate(found.walletId);
+        const transaction = await persistence.transactions.findByIdForUpdate(transactionId);
+        if (transaction?.status !== WagerTransactionStatus.PendingReference) return;
+        transaction.fail(FailureCode.InternalError, this.clock.now());
+        await persistence.transactions.update(transaction);
+      });
+    } catch {
+      // O chamador recebe o erro original, e a linha continua pendente para a próxima rodada.
     }
   }
 
@@ -140,7 +201,7 @@ export class ProcessWagerTransaction {
       at,
     });
     if (outcome.outcome === 'PENDING_REFERENCE') {
-      transaction.scheduleReferenceRetry(new Date(at.getTime() + FIRST_REFERENCE_RETRY_DELAY_MS));
+      transaction.scheduleReferenceRetry(this.referenceRetry.nextAttemptAt(0, at));
     }
 
     // A mesma chave em outra wallet não é serializada pelo lock. Aqui a unique decide, e nada foi
@@ -152,9 +213,7 @@ export class ProcessWagerTransaction {
     }
 
     await this.persistEffects(persistence, wallet, versionBefore, outcome);
-    for (const event of this.eventsOf(outcome, command, at)) {
-      await persistence.outbox.enqueue(outboxRecordOf(event));
-    }
+    await this.enqueueEvents(persistence, outcome, command, at);
     return resultOf(transaction, false);
   }
 
@@ -177,7 +236,10 @@ export class ProcessWagerTransaction {
   }
 
   /** Só no mesmo provider: uma referência que exista apenas em outro provider conta como ausente. */
-  private async loadReference(persistence: WageringPersistence, transaction: WagerTransaction) {
+  private async loadReference(
+    persistence: WageringPersistence,
+    transaction: WagerTransaction,
+  ): Promise<{ reference?: WagerTransaction; existingReversal?: WagerTransaction }> {
     if (transaction.referenceExternalTransactionId === undefined) return {};
     const reference = await persistence.transactions.findByExternalId(
       transaction.providerId,
@@ -198,12 +260,23 @@ export class ProcessWagerTransaction {
     await persistence.ledger.append(outcome.ledgerEntry);
   }
 
-  private eventsOf(outcome: WagerOutcome, command: ProcessWagerCommand, at: Date): IntegrationEvent<unknown>[] {
+  private async enqueueEvents(
+    persistence: WageringPersistence,
+    outcome: WagerOutcome,
+    trace: EventTrace,
+    at: Date,
+  ): Promise<void> {
+    for (const event of this.eventsOf(outcome, trace, at)) {
+      await persistence.outbox.enqueue(outboxRecordOf(event));
+    }
+  }
+
+  private eventsOf(outcome: WagerOutcome, trace: EventTrace, at: Date): IntegrationEvent<unknown>[] {
     const { transaction } = outcome;
     const context = (): EventContext => ({
       eventId: this.ids.next(),
-      correlationId: command.correlationId ?? transaction.id,
-      causationId: command.causationId,
+      correlationId: trace.correlationId ?? transaction.id,
+      causationId: trace.causationId,
       occurredAt: at,
     });
     switch (outcome.outcome) {

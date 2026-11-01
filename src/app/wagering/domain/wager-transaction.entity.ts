@@ -283,6 +283,23 @@ export class WagerTransaction {
     this._nextAttemptAt = new Date(nextAttemptAt);
   }
 
+  /** A última tentativa também conta: `attempts` registra quantas foram feitas até desistir. */
+  expireReference(code: FailureCode, at: Date): void {
+    if (this._status !== WagerTransactionStatus.PendingReference) {
+      throw new InvalidTransactionStateError(`${this.id}: only PENDING_REFERENCE can expire, not ${this._status}`);
+    }
+    this._attempts += 1;
+    this.reject(code, at);
+  }
+
+  isReferenceRetryDue(now: Date): boolean {
+    return (
+      this._status === WagerTransactionStatus.PendingReference &&
+      this._nextAttemptAt !== undefined &&
+      this._nextAttemptAt.getTime() <= now.getTime()
+    );
+  }
+
   reject(code: FailureCode, at: Date): void {
     this.assertCanTransitionTo(WagerTransactionStatus.Rejected);
     if (!isRejectionCode(code)) {

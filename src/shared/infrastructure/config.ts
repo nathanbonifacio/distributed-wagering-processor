@@ -32,6 +32,13 @@ const schema = z.object({
   OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(100).default(10),
   /** Prazo de cada envio ao SQS. A reserva de um lote dura 6 vezes este valor. */
   OUTBOX_PUBLISH_TIMEOUT_MS: z.coerce.number().int().min(100).default(5000),
+  /** Intervalo entre consultas de PENDING_REFERENCE vencidas quando não há lote cheio. */
+  PENDING_REFERENCE_POLL_INTERVAL_MS: z.coerce.number().int().min(10).default(1000),
+  PENDING_REFERENCE_BATCH_SIZE: z.coerce.number().int().min(1).max(100).default(10),
+  /** Backoff min(base·2^n, teto) e limite de tentativas: por padrão, cerca de 25 minutos até desistir. */
+  PENDING_REFERENCE_RETRY_BASE_MS: z.coerce.number().int().min(1).default(5000),
+  PENDING_REFERENCE_RETRY_MAX_MS: z.coerce.number().int().min(1).default(300_000),
+  PENDING_REFERENCE_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(10),
 });
 
 export type AppConfig = z.infer<typeof schema>;

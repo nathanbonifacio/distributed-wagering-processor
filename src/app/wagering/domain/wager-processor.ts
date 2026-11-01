@@ -96,6 +96,17 @@ export class WagerProcessor {
     return this.apply(wallet, transaction, undefined, ledgerEntry, at);
   }
 
+  /**
+   * Limite de tentativas esgotado. A referência ausente é REFERENCE_NOT_FOUND; a que existe, mas segue
+   * pendente em uma cadeia de reversões, é REFERENCE_NOT_PROCESSED.
+   */
+  expireReference(wallet: Wallet, transaction: WagerTransaction, reference: WagerTransaction | undefined, at: Date): WagerRejected {
+    const failureCode = reference ? FailureCode.ReferenceNotProcessed : FailureCode.ReferenceNotFound;
+    transaction.recordObservedBalance(wallet.balance);
+    transaction.expireReference(failureCode, at);
+    return { outcome: 'REJECTED', transaction, failureCode, balance: wallet.balance };
+  }
+
   private assertProcessable({ wallet, transaction, reference }: ProcessWagerInput): void {
     if (transaction.kind === WagerTransactionKind.Opening) {
       throw new InvalidWagerOperationError('OPENING é processado por processOpening');
