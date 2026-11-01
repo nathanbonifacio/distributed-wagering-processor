@@ -1,4 +1,4 @@
-/** Registro plano: a entidade InboxMessage e seu comportamento entram com o consumer (Etapa 9). */
+/** Registro plano gravado na mesma transação da alteração financeira. */
 export interface InboxRecord {
   consumerName: string;
   messageId: string;

@@ -11,6 +11,14 @@ const schema = z.object({
   WORKER_PORT: z.coerce.number().int().min(0).max(65535).default(3100),
   SQS_INPUT_QUEUE_NAME: z.string().min(1).default('wager-transactions.fifo'),
   SQS_EVENTS_QUEUE_NAME: z.string().min(1).default('wager-events'),
+  SQS_DLQ_QUEUE_NAME: z.string().min(1).default('wager-transactions-dlq.fifo'),
+  /** Mensagens por recebimento; grupos diferentes são processados em paralelo. */
+  SQS_CONSUMER_BATCH_SIZE: z.coerce.number().int().min(1).max(10).default(10),
+  SQS_CONSUMER_WAIT_SECONDS: z.coerce.number().int().min(0).max(20).default(10),
+  /** Primeiro intervalo do retry de erro transitório; dobra a cada recebimento, até 5 minutos. */
+  SQS_CONSUMER_RETRY_BASE_SECONDS: z.coerce.number().int().min(0).default(5),
+  /** Espera pelas mensagens em andamento no encerramento. Abaixo dos 10 s do `docker stop`. */
+  SQS_CONSUMER_SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(0).default(8000),
   /** Prazo de cada dependência no /health/ready. */
   HEALTH_CHECK_TIMEOUT_MS: z.coerce.number().int().min(100).max(30000).default(2000),
   /** Prazo para estabelecer conexão com o PostgreSQL (pool do driver). */

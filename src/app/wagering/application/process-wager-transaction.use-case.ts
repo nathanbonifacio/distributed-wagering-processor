@@ -1,5 +1,6 @@
 import { outboxRecordOf } from '../../messaging/application/integration-event-outbox';
 import type { EventContext, IntegrationEvent } from '../../messaging/domain/integration-event';
+import { InboxMessage, InboxMessageConflictError } from '../../messaging/domain/inbox-message';
 import { WalletBalanceChanged } from '../../wallet/domain/events/wallet-balance-changed';
 import type { Wallet } from '../../wallet/domain/wallet.entity';
 import { WalletNotFoundError } from '../../wallet/domain/wallet-errors';
@@ -42,6 +43,12 @@ export interface ProcessWagerCommand {
   causationId?: string;
 }
 
+/** Entrega pela fila: o inbox entra na mesma transação da operação. */
+export interface MessageDelivery {
+  consumerName: string;
+  messageId: string;
+}
+
 export interface ProcessWagerResult {
   transactionId: string;
   status: WagerTransactionStatus;
@@ -70,14 +77,44 @@ export class ProcessWagerTransaction {
     private readonly ids: IdGenerator,
   ) {}
 
-  async execute(command: ProcessWagerCommand): Promise<ProcessWagerResult> {
+  async execute(command: ProcessWagerCommand, delivery?: MessageDelivery): Promise<ProcessWagerResult> {
     const transaction = this.newTransaction(command);
     try {
-      return await this.unitOfWork.run((persistence) => this.process(persistence, transaction, command));
+      return await this.unitOfWork.run(async (persistence) => {
+        const inbox = delivery && (await this.registerDelivery(persistence, delivery, transaction.payloadHash));
+        const result = await this.process(persistence, transaction, command);
+        if (inbox) await this.completeDelivery(persistence, inbox);
+        return result;
+      });
     } catch (error) {
       if (error instanceof PermanentInfrastructureError) await this.recordFailure(command);
       throw error;
     }
+  }
+
+  /**
+   * Antes do lock da wallet, sempre nesta ordem: quem espera por um messageId não segura nenhuma wallet, e
+   * não há ciclo de espera. Devolve a mensagem só se ainda faltar concluí-la. Uma redelivery segue pelo
+   * fluxo normal, que encontra a operação e vira replay, sem efeito.
+   */
+  private async registerDelivery(
+    persistence: WageringPersistence,
+    delivery: MessageDelivery,
+    payloadHash: string,
+  ): Promise<InboxMessage | undefined> {
+    const message = InboxMessage.receive({ ...delivery, payloadHash, receivedAt: this.clock.now() });
+    if (await persistence.inbox.recordIfNew(message)) return message;
+
+    const existing = InboxMessage.rehydrate((await persistence.inbox.find(delivery.consumerName, delivery.messageId))!);
+    if (!existing.matchesPayload(payloadHash)) {
+      throw new InboxMessageConflictError(`message ${delivery.messageId} was already received with a different payload`);
+    }
+    return existing.isProcessed() ? undefined : existing;
+  }
+
+  private async completeDelivery(persistence: WageringPersistence, message: InboxMessage): Promise<void> {
+    message.markProcessed(this.clock.now());
+    await persistence.inbox.markProcessed(message.consumerName, message.messageId, message.processedAt!);
   }
 
   private async process(
