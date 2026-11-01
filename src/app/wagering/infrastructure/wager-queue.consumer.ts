@@ -58,6 +58,8 @@ function permanentFailureCode(error: unknown): string | undefined {
 export class WagerQueueConsumer implements OnApplicationBootstrap, BeforeApplicationShutdown {
   private readonly logger = new Logger(WagerQueueConsumer.name);
   private readonly stopping = new AbortController();
+  /** Mensagens que este processo começou e ainda não terminou: no prazo do shutdown, voltam para a fila. */
+  private readonly inFlight = new Set<Message>();
   private running?: Promise<void>;
   private inputQueueUrl?: string;
   private dlqQueueUrl?: string;
@@ -76,13 +78,21 @@ export class WagerQueueConsumer implements OnApplicationBootstrap, BeforeApplica
     this.running = this.pollUntilStopped();
   }
 
-  /** Para de receber, conclui o que está em andamento, dentro do prazo, e devolve o que nem começou. */
+  /**
+   * Para de receber e conclui o que está em andamento, dentro do prazo. Se o prazo vencer, devolve à fila o que
+   * ainda não terminou, para outra instância assumir sem esperar a visibilidade expirar. Se aquela transação
+   * ainda confirmar, a redelivery é um replay: o inbox e a idempotency key garantem um único efeito.
+   */
   async beforeApplicationShutdown(): Promise<void> {
     this.stopping.abort();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const deadline = new Promise<void>((resolve) => { timer = setTimeout(resolve, this.options.shutdownTimeoutMs); });
-    await Promise.race([this.running, deadline]);
+    const deadline = new Promise<'deadline'>((resolve) => { timer = setTimeout(() => resolve('deadline'), this.options.shutdownTimeoutMs); });
+    const outcome = await Promise.race([this.running?.then(() => 'finished' as const), deadline]);
     clearTimeout(timer);
+    if (outcome === 'deadline' && this.inFlight.size > 0) {
+      this.logger.warn({ msg: 'shutdown deadline reached: returning in-flight messages to the queue', inFlight: this.inFlight.size });
+      await Promise.all([...this.inFlight].map((message) => this.release(message)));
+    }
   }
 
   private get stopped(): boolean {
@@ -131,10 +141,15 @@ export class WagerQueueConsumer implements OnApplicationBootstrap, BeforeApplica
   }
 
   /** Todo log e todo evento da mensagem compartilham o messageId do envelope (ou o do SQS, se ele nem for lido). */
-  private handle(message: Message): Promise<HandleOutcome> {
+  private async handle(message: Message): Promise<HandleOutcome> {
     const parsed = this.parse(message);
     const id = parsed?.messageId ?? message.MessageId;
-    return runWithContext({ correlationId: id, messageId: id }, () => this.handleMessage(message, parsed));
+    this.inFlight.add(message);
+    try {
+      return await runWithContext({ correlationId: id, messageId: id }, () => this.handleMessage(message, parsed));
+    } finally {
+      this.inFlight.delete(message);
+    }
   }
 
   private async handleMessage(message: Message, parsed: ReturnType<WagerQueueConsumer['parse']>): Promise<HandleOutcome> {

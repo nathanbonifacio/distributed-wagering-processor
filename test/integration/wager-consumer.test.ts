@@ -717,7 +717,16 @@ describe('graceful shutdown', () => {
 
     await lock.release();
     await until(() => inboxRow(message.messageId), Boolean, 'the message that was already running');
-    await untilInputDrained();
+    // At the deadline the unfinished message was handed back to the queue, so the late ack of the old handler may
+    // not delete it. Another consumer then receives it again, finds it already applied, and acknowledges it.
+    const next = consumerWith(sqs);
+    next.onApplicationBootstrap();
+    try {
+      await untilInputDrained();
+    } finally {
+      await next.beforeApplicationShutdown();
+    }
+    expect((await movementsOf(db, wallet.id)).length).toBe(1);
     await assertFinancialInvariants(db, wallet.id);
   }, TIMEOUT);
 
