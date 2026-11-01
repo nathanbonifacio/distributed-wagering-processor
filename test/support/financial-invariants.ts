@@ -30,7 +30,7 @@ interface TransactionRow {
  */
 export async function assertFinancialInvariants(db: TestDatabase, walletId: string): Promise<void> {
   const [wallet] = await db.sql<WalletRow>('SELECT balance::text AS balance, currency, version FROM wallets WHERE id = ?', [walletId]);
-  if (!wallet) throw new Error(`wallet ${walletId} não existe`);
+  if (!wallet) throw new Error(`wallet ${walletId} does not exist`);
 
   const entries = await db.sql<EntryRow>(
     `SELECT id, transaction_id, wallet_version, direction, amount::text AS amount, balance_before::text AS balance_before,

@@ -91,7 +91,7 @@ export function analyze(files: SourceFiles): Violation[] {
     const fromModule = moduleOf(from);
 
     if (!target && spec.startsWith('.')) {
-      add(from, 'imports resolvidos', `não foi possível resolver "${spec}"`);
+      add(from, 'imports resolvidos', `could not resolve "${spec}"`);
       continue;
     }
 
@@ -99,13 +99,13 @@ export function analyze(files: SourceFiles): Violation[] {
     if (!target) {
       if (fromLayer === 'domain') {
         if (!DOMAIN_EXTERNALS.has(spec)) {
-          add(from, 'domínio puro', `o domínio não pode importar "${spec}"`);
+          add(from, 'domínio puro', `the domain cannot import "${spec}"`);
         } else if (from !== DECIMAL_OWNER) {
-          add(from, 'domínio puro', `"${spec}" só é permitido em ${DECIMAL_OWNER}`);
+          add(from, 'domínio puro', `"${spec}" is only allowed in ${DECIMAL_OWNER}`);
         }
       }
       if ((fromLayer === 'application' || fromLayer === 'presentation') && INFRA_PACKAGES.some((p) => p.test(spec))) {
-        add(from, 'camadas', `${fromLayer} não pode importar o pacote de infraestrutura "${spec}"`);
+        add(from, 'camadas', `${fromLayer} cannot import the infrastructure package "${spec}"`);
       }
       continue;
     }
@@ -115,24 +115,24 @@ export function analyze(files: SourceFiles): Violation[] {
 
     // --- camadas (valem dentro do módulo, entre módulos e para o shared)
     if (fromLayer && fromLayer !== 'infrastructure' && targetModule === 'database') {
-      add(from, 'camadas', `${fromLayer} não pode importar o database (${spec})`);
+      add(from, 'camadas', `${fromLayer} cannot import the database (${spec})`);
     }
     if (fromLayer && targetLayer && !ALLOWED_LAYER_IMPORTS[fromLayer].includes(targetLayer)) {
-      add(from, 'camadas', `${fromLayer} não pode importar ${targetLayer} (${spec})`);
+      add(from, 'camadas', `${fromLayer} cannot import ${targetLayer} (${spec})`);
     }
 
     // --- dependências entre módulos
     if (fromModule !== targetModule && fromModule !== 'root') {
       const allowed = ALLOWED_MODULE_DEPENDENCIES[fromModule];
       if (!allowed) {
-        add(from, 'módulos', `o módulo "${fromModule}" não está declarado em ALLOWED_MODULE_DEPENDENCIES`);
+        add(from, 'módulos', `the module "${fromModule}" is not declared in ALLOWED_MODULE_DEPENDENCIES`);
       } else if (!allowed.includes(targetModule)) {
-        add(from, 'módulos', `"${fromModule}" não pode depender de "${targetModule}" (${spec})`);
+        add(from, 'módulos', `"${fromModule}" cannot depend on "${targetModule}" (${spec})`);
       }
       // Entre módulos de funcionalidade só se importa a superfície pública: domain, application ou um *.module.ts.
       const isFeatureTarget = target.startsWith('src/app/');
       if (isFeatureTarget && targetLayer !== 'domain' && targetLayer !== 'application' && !target.endsWith('.module.ts')) {
-        add(from, 'módulos', `import profundo em "${targetModule}": só domain, application ou *.module.ts (${spec})`);
+        add(from, 'módulos', `deep import into "${targetModule}": only domain, application or *.module.ts (${spec})`);
       }
     }
   }

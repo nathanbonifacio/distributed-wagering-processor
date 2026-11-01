@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Headers, HttpStatus, Inject, NotFoundException, Param, Post, Res, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { identifierSchema, uuidSchema } from '../../../shared/application/contract-schemas';
+import { currentContext } from '../../../shared/application/request-context';
 import { ProviderAuthGuard } from '../../../shared/presentation/provider-auth.guard';
 import { parseRequest } from '../../../shared/presentation/request-validation';
 import { type ProcessWagerResult, ProcessWagerTransaction } from '../application/process-wager-transaction.use-case';
@@ -59,7 +60,7 @@ function transactionResponse(transaction: WagerTransaction) {
 }
 
 const found = (transaction: WagerTransaction | undefined) => {
-  if (!transaction) throw new NotFoundException({ code: 'TRANSACTION_NOT_FOUND', message: 'transação não encontrada' });
+  if (!transaction) throw new NotFoundException({ code: 'TRANSACTION_NOT_FOUND', message: 'transaction not found' });
   return transactionResponse(transaction);
 };
 
@@ -78,7 +79,11 @@ export class WageringController {
     @Res({ passthrough: true }) response: { status(code: number): unknown },
   ) {
     const { 'Idempotency-Key': idempotencyKey } = parseRequest(idempotencyHeaderSchema, { 'Idempotency-Key': rawKey });
-    const result = await this.processWager.execute({ ...parseRequest(wagerPayloadSchema, rawBody), idempotencyKey });
+    const result = await this.processWager.execute({
+      ...parseRequest(wagerPayloadSchema, rawBody),
+      idempotencyKey,
+      correlationId: currentContext().correlationId,
+    });
     response.status(httpStatusOf(result));
     return submissionResponse(result);
   }

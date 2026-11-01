@@ -43,7 +43,7 @@ export class MikroOrmWalletRepository implements WalletRepository {
       { balance: moneyToColumn(wallet.balance), version: wallet.version, updatedAt: wallet.updatedAt },
     );
     if (affected !== 1) {
-      throw new TransientInfrastructureError(`wallet ${wallet.id} não está mais na versão ${expectedVersion}`);
+      throw new TransientInfrastructureError(`wallet ${wallet.id} is no longer at version ${expectedVersion}`);
     }
   }
 }

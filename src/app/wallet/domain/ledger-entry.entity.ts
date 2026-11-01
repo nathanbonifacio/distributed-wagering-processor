@@ -48,24 +48,24 @@ export class WalletLedgerEntry {
 
   static create(props: CreateLedgerEntryProps): WalletLedgerEntry {
     if (!props.id || !props.walletId || !props.transactionId) {
-      throw new InvalidLedgerEntryError('id, walletId e transactionId são obrigatórios');
+      throw new InvalidLedgerEntryError('id, walletId and transactionId are required');
     }
     if (!Number.isInteger(props.walletVersion) || props.walletVersion < 1) {
-      throw new InvalidLedgerEntryError('walletVersion deve ser um inteiro >= 1');
+      throw new InvalidLedgerEntryError('walletVersion must be an integer >= 1');
     }
     const { money, balanceBefore, balanceAfter } = props;
     if (money.currency !== balanceBefore.currency || money.currency !== balanceAfter.currency) {
-      throw new InvalidLedgerEntryError('valor e saldos precisam estar na mesma moeda');
+      throw new InvalidLedgerEntryError('amount and balances must be in the same currency');
     }
     if (!money.isPositive()) {
-      throw new InvalidLedgerEntryError('o valor do lançamento deve ser estritamente positivo');
+      throw new InvalidLedgerEntryError('the ledger entry amount must be strictly positive');
     }
     if (balanceBefore.isNegative() || balanceAfter.isNegative()) {
-      throw new InvalidLedgerEntryError('o lançamento não pode registrar saldo negativo');
+      throw new InvalidLedgerEntryError('a ledger entry cannot record a negative balance');
     }
     const entry = new WalletLedgerEntry(props);
     if (!entry.isBalanced()) {
-      throw new InvalidLedgerEntryError('aritmética inconsistente: saldo anterior ± valor difere do saldo posterior');
+      throw new InvalidLedgerEntryError('inconsistent arithmetic: previous balance ± amount differs from the resulting balance');
     }
     return entry;
   }

@@ -128,7 +128,7 @@ async function waitForBlockedSession(): Promise<void> {
     if (row?.blocked > 0) return;
     await Bun.sleep(20);
   }
-  throw new Error('nenhuma sessão ficou bloqueada no prazo');
+  throw new Error('no session was blocked in time');
 }
 
 const moneyOf = (result: ProcessWagerResult) => result.balance?.toJSON().amount;
@@ -192,8 +192,8 @@ async function expectNoEffect(wallet: Wallet, balance: string, version: number, 
   await assertConsistent(wallet.id);
 }
 
-describe('operações', () => {
-  test('BET aplicada: debita, lança, versiona e registra os eventos', async () => {
+describe('operations', () => {
+  test('BET applied: debits, records the entry, bumps the version and records the events', async () => {
     const wallet = await openWallet();
     const result = await useCase.execute(command(wallet, Kind.Bet));
     expect(result).toMatchObject({ status: Status.Processed, idempotentReplay: false });
@@ -212,7 +212,7 @@ describe('operações', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('BET sem saldo: REJECTED, auditável, sem lançamento nem versão', async () => {
+  test('BET without funds: REJECTED, audited, without an entry or a version', async () => {
     const wallet = await openWallet('10.00');
     const result = await useCase.execute(command(wallet, Kind.Bet));
     expect(result).toMatchObject({ status: Status.Rejected, failureCode: 'INSUFFICIENT_FUNDS', idempotentReplay: false });
@@ -222,13 +222,13 @@ describe('operações', () => {
     expect(await eventTypes(wallet.id)).toEqual(['WagerTransactionRejected']);
   });
 
-  test('BET de todo o saldo chega a zero, sem negativo', async () => {
+  test('a BET of the whole balance reaches zero, never negative', async () => {
     const wallet = await openWallet('25.00');
     expect(moneyOf(await useCase.execute(command(wallet, Kind.Bet)))).toBe('0.00');
     await expectNoEffect(wallet, '0.00', 2, 1);
   });
 
-  test('WIN credita, com ou sem referência, e o valor é livre', async () => {
+  test('WIN credits, with or without a reference, and the amount is free', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     await useCase.execute(bet);
@@ -242,7 +242,7 @@ describe('operações', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('LOSS registra sem mover saldo: sem lançamento, sem versão, só o evento Processed', async () => {
+  test('LOSS records without moving balance: no entry, no version, only the Processed event', async () => {
     const wallet = await openWallet();
     const result = await useCase.execute(command(wallet, Kind.Loss));
     expect(result.status).toBe(Status.Processed);
@@ -251,13 +251,13 @@ describe('operações', () => {
     expect(await eventTypes(wallet.id)).toEqual(['WagerTransactionProcessed']);
   });
 
-  test('LOSS aceita valor zero', async () => {
+  test('LOSS accepts a zero amount', async () => {
     const wallet = await openWallet();
     const result = await useCase.execute(command(wallet, Kind.Loss, { money: { amount: '0.00', currency: 'BRL' } }));
     expect(result.status).toBe(Status.Processed);
   });
 
-  test('REFUND válido devolve o valor da BET', async () => {
+  test('a valid REFUND returns the amount of the BET', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     const applied = await useCase.execute(bet);
@@ -269,7 +269,7 @@ describe('operações', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('ROLLBACK válido aplica o inverso da referência: BET credita, WIN e REFUND debitam', async () => {
+  test('a valid ROLLBACK applies the inverse of the reference: BET credits, WIN and REFUND debit', async () => {
     const wallet = await openWallet();
     const reference = (id: string) => ({ referenceExternalTransactionId: id });
 
@@ -290,14 +290,14 @@ describe('operações', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('wallet de outro player: REJECTED, com o saldo observado', async () => {
+  test('wallet of another player: REJECTED, with the observed balance', async () => {
     const wallet = await openWallet();
     const result = await useCase.execute(command(wallet, Kind.Bet, { playerId: randomUUID() }));
     expect(result).toMatchObject({ status: Status.Rejected, failureCode: 'PLAYER_WALLET_MISMATCH' });
     await expectNoEffect(wallet, '100.00', 1, 0);
   });
 
-  test('moeda diferente: REJECTED, e o saldo observado continua na moeda da wallet', async () => {
+  test('different currency: REJECTED, and the observed balance stays in the wallet currency', async () => {
     const wallet = await openWallet();
     const result = await useCase.execute(command(wallet, Kind.Bet, { money: { amount: '25.00', currency: 'USD' } }));
     expect(result).toMatchObject({ status: Status.Rejected, failureCode: 'CURRENCY_MISMATCH' });
@@ -306,14 +306,14 @@ describe('operações', () => {
     await expectNoEffect(wallet, '100.00', 1, 0);
   });
 
-  test('crédito além do limite do NUMERIC(20,2): REJECTED, sem efeito', async () => {
+  test('credit past the NUMERIC(20,2) limit: REJECTED, no effect', async () => {
     const wallet = await openWallet('999999999999999999.99');
     const result = await useCase.execute(command(wallet, Kind.Win, { money: { amount: '0.01', currency: 'BRL' } }));
     expect(result).toMatchObject({ status: Status.Rejected, failureCode: 'BALANCE_LIMIT_EXCEEDED' });
     await expectNoEffect(wallet, '999999999999999999.99', 1, 0);
   });
 
-  test('valores nos limites passam sem perda de precisão', async () => {
+  test('values at the limits pass without losing precision', async () => {
     const wallet = await openWallet('999999999999999999.99');
     const result = await useCase.execute(command(wallet, Kind.Bet, { money: { amount: '0.01', currency: 'BRL' } }));
     expect(moneyOf(result)).toBe('999999999999999999.98');
@@ -321,20 +321,20 @@ describe('operações', () => {
   });
 });
 
-describe('validação de entrada', () => {
-  test('OPENING nunca é aceita como operação externa, e nada é gravado', async () => {
+describe('input validation', () => {
+  test('OPENING is never accepted as an external operation, and nothing is written', async () => {
     const wallet = await openWallet();
     const external = command(wallet, Kind.Opening);
     await expectError(useCase.execute(external), InvalidWagerTransactionError);
     expect(await uow.run((c) => c.transactions.findByIdempotencyKey(external.idempotencyKey))).toBeUndefined();
   });
 
-  test('o provider reservado é recusado na entrada', async () => {
+  test('the reserved provider is refused on input', async () => {
     const wallet = await openWallet();
     await expectError(useCase.execute(command(wallet, Kind.Bet, { providerId: INTERNAL_PROVIDER_ID })), InvalidWagerTransactionError);
   });
 
-  test('não se reutiliza a identidade determinística da OPENING', async () => {
+  test('the deterministic identity of the OPENING is not reused', async () => {
     const wallet = await openWallet();
     const opening = `opening:${wallet.id}`;
     await expectError(
@@ -344,19 +344,19 @@ describe('validação de entrada', () => {
     await expectNoEffect(wallet, '100.00', 1, 0);
   });
 
-  test.each([['25'], ['25.5'], ['25.555'], ['-25.00'], ['1e2'], ['']])('valor fora do contrato é recusado: "%s"', async (amount) => {
+  test.each([['25'], ['25.5'], ['25.555'], ['-25.00'], ['1e2'], ['']])('a value outside the contract is refused: "%s"', async (amount) => {
     const wallet = await openWallet();
     await expectError(useCase.execute(command(wallet, Kind.Bet, { money: { amount, currency: 'BRL' } })), InvalidMoneyError);
     await expectNoEffect(wallet, '100.00', 1, 0);
   });
 
-  test('zero é recusado em quem move saldo; REFUND sem referência também', async () => {
+  test('zero is refused for operations that move balance; so is a REFUND without a reference', async () => {
     const wallet = await openWallet();
     await expectError(useCase.execute(command(wallet, Kind.Bet, { money: { amount: '0.00', currency: 'BRL' } })), InvalidWagerTransactionError);
     await expectError(useCase.execute(command(wallet, Kind.Refund)), InvalidWagerTransactionError);
   });
 
-  test('wallet inexistente: WALLET_NOT_FOUND, sem persistir nada', async () => {
+  test('nonexistent wallet: WALLET_NOT_FOUND, nothing persisted', async () => {
     const wallet = await openWallet();
     const missing = command(wallet, Kind.Bet, { walletId: randomUUID() });
     const error = await expectError(useCase.execute(missing), WalletNotFoundError);
@@ -366,8 +366,8 @@ describe('validação de entrada', () => {
   });
 });
 
-describe('referências', () => {
-  test('ausente: PENDING_REFERENCE agendada, sem saldo, ledger nem versão', async () => {
+describe('references', () => {
+  test('missing: PENDING_REFERENCE scheduled, without balance, ledger entry or version', async () => {
     const wallet = await openWallet();
     const before = new Date();
     const clock: Clock = { now: () => before };
@@ -385,7 +385,7 @@ describe('referências', () => {
     expect(await eventTypes(wallet.id)).toEqual(['WagerTransactionPendingReference']);
   });
 
-  test('pendente fica disponível ao futuro retrier somente depois do prazo', async () => {
+  test('a pending transaction becomes available to the future retrier only after its deadline', async () => {
     const wallet = await openWallet();
     const at = new Date('2000-01-01T00:00:00.000Z');
     const { transactionId } = await buildUseCase(uow, { now: () => at }).execute(
@@ -396,7 +396,7 @@ describe('referências', () => {
     expect(await due(new Date('2000-01-01T00:00:05.000Z'))).toContain(transactionId);
   });
 
-  test('o domínio retoma a pendente persistida quando a referência chega', async () => {
+  test('the domain resumes the persisted pending transaction when the reference arrives', async () => {
     const wallet = await openWallet();
     const betId = randomUUID();
     const pending = await useCase.execute(command(wallet, Kind.Refund, { referenceExternalTransactionId: betId }));
@@ -416,7 +416,7 @@ describe('referências', () => {
     expect(resumed.outcome).toBe('APPLIED');
   });
 
-  test('referência que só existe em outro provider conta como ausente', async () => {
+  test('a reference that only exists in another provider counts as missing', async () => {
     const wallet = await openWallet();
     const betOtherProvider = command(wallet, Kind.Bet, { providerId: 'provider-b' });
     await useCase.execute(betOtherProvider);
@@ -427,7 +427,7 @@ describe('referências', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('referência ainda pendente: a operação também aguarda', async () => {
+  test('reference still pending: the operation waits too', async () => {
     const wallet = await openWallet();
     const win = command(wallet, Kind.Win, { referenceExternalTransactionId: 'bet-que-nao-chegou' });
     await useCase.execute(win);
@@ -436,7 +436,7 @@ describe('referências', () => {
     await expectNoEffect(wallet, '100.00', 1, 0);
   });
 
-  test('tipo incompatível: REFUND de WIN é REFERENCE_KIND_INVALID', async () => {
+  test('incompatible kind: REFUND of a WIN is REFERENCE_KIND_INVALID', async () => {
     const wallet = await openWallet();
     const win = command(wallet, Kind.Win);
     await useCase.execute(win);
@@ -445,7 +445,7 @@ describe('referências', () => {
     await expectNoEffect(wallet, '125.00', 2, 1);
   });
 
-  test('rodada diferente é REFERENCE_MISMATCH', async () => {
+  test('a different round is REFERENCE_MISMATCH', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     await useCase.execute(bet);
@@ -456,7 +456,7 @@ describe('referências', () => {
     await expectNoEffect(wallet, '75.00', 2, 1);
   });
 
-  test('wallet diferente é REFERENCE_MISMATCH, sem mexer em nenhuma das duas', async () => {
+  test('a different wallet is REFERENCE_MISMATCH, touching neither of the two', async () => {
     const [wallet, other] = [await openWallet(), await openWallet()];
     const bet = command(wallet, Kind.Bet);
     await useCase.execute(bet);
@@ -466,7 +466,7 @@ describe('referências', () => {
     await expectNoEffect(other, '100.00', 1, 0);
   });
 
-  test('valor diferente na reversão é AMOUNT_MISMATCH', async () => {
+  test('a different amount in the reversal is AMOUNT_MISMATCH', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     await useCase.execute(bet);
@@ -477,7 +477,7 @@ describe('referências', () => {
     await expectNoEffect(wallet, '75.00', 2, 1);
   });
 
-  test('referência REJECTED é REFERENCE_NOT_PROCESSED', async () => {
+  test('a REJECTED reference is REFERENCE_NOT_PROCESSED', async () => {
     const wallet = await openWallet('10.00');
     const bet = command(wallet, Kind.Bet);
     await useCase.execute(bet);
@@ -486,7 +486,7 @@ describe('referências', () => {
     await expectNoEffect(wallet, '10.00', 1, 0);
   });
 
-  test('reversão duplicada: REFUND repetido é ALREADY_REVERSED e não credita de novo', async () => {
+  test('duplicate reversal: a repeated REFUND is ALREADY_REVERSED and does not credit again', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     await useCase.execute(bet);
@@ -498,7 +498,7 @@ describe('referências', () => {
     await expectNoEffect(wallet, '100.00', 3, 2);
   });
 
-  test('REFUND e ROLLBACK da mesma operação são mutuamente exclusivos', async () => {
+  test('REFUND and ROLLBACK of the same operation are mutually exclusive', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     await useCase.execute(bet);
@@ -508,7 +508,7 @@ describe('referências', () => {
     await expectNoEffect(wallet, '100.00', 3, 2);
   });
 
-  test('reversão que deixaria o saldo negativo: REVERSAL_INSUFFICIENT_FUNDS, código distinto, auditável', async () => {
+  test('a reversal that would leave a negative balance: REVERSAL_INSUFFICIENT_FUNDS, distinct code, audited', async () => {
     const wallet = await openWallet('0.00');
     const win = command(wallet, Kind.Win);
     await useCase.execute(win);
@@ -522,7 +522,7 @@ describe('referências', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('uma reversão rejeitada não impede a reversão válida depois', async () => {
+  test('a rejected reversal does not prevent the valid reversal afterwards', async () => {
     const wallet = await openWallet('0.00');
     const win = command(wallet, Kind.Win);
     await useCase.execute(win);
@@ -535,8 +535,8 @@ describe('referências', () => {
   });
 });
 
-describe('idempotência', () => {
-  test('replay idêntico devolve o resultado original com o saldo da época, sem efeitos', async () => {
+describe('idempotency', () => {
+  test('an identical replay returns the original result with the balance of the time, without effects', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     const first = await useCase.execute(bet);
@@ -552,7 +552,7 @@ describe('idempotência', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('replay de REJECTED devolve a mesma rejeição, mesmo que agora houvesse saldo', async () => {
+  test('a replay of REJECTED returns the same rejection, even if there were funds now', async () => {
     const wallet = await openWallet('10.00');
     const bet = command(wallet, Kind.Bet);
     const first = await useCase.execute(bet);
@@ -568,7 +568,7 @@ describe('idempotência', () => {
     expect((await readTx(first.transactionId)).status).toBe(Status.Rejected);
   });
 
-  test('replay de LOSS devolve o saldo observado, sem novo evento', async () => {
+  test('a replay of LOSS returns the observed balance, without a new event', async () => {
     const wallet = await openWallet();
     const loss = command(wallet, Kind.Loss);
     await useCase.execute(loss);
@@ -578,7 +578,7 @@ describe('idempotência', () => {
     expect(moneyOf(replay)).toBe('100.00');
   });
 
-  test('replay de PENDING_REFERENCE preserva identidade e estado, sem inventar saldo', async () => {
+  test('a replay of PENDING_REFERENCE preserves identity and state, without inventing a balance', async () => {
     const wallet = await openWallet();
     const refund = command(wallet, Kind.Refund, { referenceExternalTransactionId: 'ausente' });
     const first = await useCase.execute(refund);
@@ -588,7 +588,7 @@ describe('idempotência', () => {
     expect((await eventsOf(wallet.id))).toHaveLength(1);
   });
 
-  test('metadados de transporte não participam: correlationId diferente ainda é replay', async () => {
+  test('transport metadata does not take part: a different correlationId is still a replay', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet, { correlationId: 'a', causationId: 'msg-1' });
     await useCase.execute(bet);
@@ -596,7 +596,7 @@ describe('idempotência', () => {
     expect(replay.idempotentReplay).toBe(true);
   });
 
-  test('o envelope guarda correlação e causa, com o dinheiro como string', async () => {
+  test('the envelope keeps correlation and cause, with the money as a string', async () => {
     const wallet = await openWallet();
     await useCase.execute(command(wallet, Kind.Bet, { correlationId: 'corr-1', causationId: 'msg-1' }));
     const [changed] = (await eventsOf(wallet.id)).filter((e) => e.event_type === 'WalletBalanceChanged');
@@ -609,7 +609,7 @@ describe('idempotência', () => {
     });
   });
 
-  test('conflito: mesma chave com payload diferente, sem efeito e sem alterar o original', async () => {
+  test('conflict: same key with a different payload, no effect and the original is unchanged', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     const first = await useCase.execute(bet);
@@ -622,7 +622,7 @@ describe('idempotência', () => {
     expect((await readTx(first.transactionId)).money.toJSON().amount).toBe('25.00');
   });
 
-  test('conflito: mesmo id externo do provider com outra chave', async () => {
+  test('conflict: same provider external id with another key', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     await useCase.execute(bet);
@@ -630,14 +630,14 @@ describe('idempotência', () => {
     await expectNoEffect(wallet, '75.00', 2, 1);
   });
 
-  test('conflito tem precedência sobre WALLET_NOT_FOUND', async () => {
+  test('a conflict takes precedence over WALLET_NOT_FOUND', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     await useCase.execute(bet);
     await expectError(useCase.execute({ ...bet, walletId: randomUUID() }), IdempotencyConflictError);
   });
 
-  test('o mesmo id externo em providers diferentes são operações diferentes', async () => {
+  test('the same external id in different providers are different operations', async () => {
     const wallet = await openWallet();
     const externalTransactionId = randomUUID();
     await useCase.execute(command(wallet, Kind.Bet, { externalTransactionId }));
@@ -646,7 +646,7 @@ describe('idempotência', () => {
     await expectNoEffect(wallet, '50.00', 3, 2);
   });
 
-  test('o hash gravado é o do payload canônico', async () => {
+  test('the stored hash is that of the canonical payload', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     const { transactionId } = await useCase.execute(bet);
@@ -654,8 +654,8 @@ describe('idempotência', () => {
   });
 });
 
-describe('concorrência (PostgreSQL real)', () => {
-  test('cenário obrigatório: 100.00 e duas BETs de 80.00', async () => {
+describe('concurrency (real PostgreSQL)', () => {
+  test('mandatory scenario: 100.00 and two BETs of 80.00', async () => {
     const wallet = await openWallet();
     const results = await Promise.all([
       useCase.execute(command(wallet, Kind.Bet, { money: { amount: '80.00', currency: 'BRL' } })),
@@ -666,7 +666,7 @@ describe('concorrência (PostgreSQL real)', () => {
     await expectNoEffect(wallet, '20.00', 2, 1);
   }, CONCURRENCY_TIMEOUT);
 
-  test('mesma chave 50 vezes ao mesmo tempo: um único efeito e 49 replays do mesmo resultado', async () => {
+  test('same key 50 times at once: a single effect and 49 replays of the same result', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     const results = await Promise.all(Array.from({ length: 50 }, () => useCase.execute(bet)));
@@ -677,7 +677,7 @@ describe('concorrência (PostgreSQL real)', () => {
     expect(await eventsOf(wallet.id)).toHaveLength(2);
   }, CONCURRENCY_TIMEOUT);
 
-  test('operações distintas simultâneas na mesma wallet: sem lost update nem negativo', async () => {
+  test('distinct simultaneous operations on the same wallet: no lost update and never negative', async () => {
     const wallet = await openWallet('100.00');
     const commands = [
       ...Array.from({ length: 12 }, () => command(wallet, Kind.Bet, { money: { amount: '10.00', currency: 'BRL' } })),
@@ -695,7 +695,7 @@ describe('concorrência (PostgreSQL real)', () => {
     await assertConsistent(wallet.id);
   }, CONCURRENCY_TIMEOUT);
 
-  test('a mesma wallet espera; wallets diferentes não se bloqueiam', async () => {
+  test('the same wallet waits; different wallets do not block each other', async () => {
     const [held, free] = [await openWallet(), await openWallet()];
     let release!: () => void;
     const released = new Promise<void>((resolve) => { release = resolve; });
@@ -718,7 +718,7 @@ describe('concorrência (PostgreSQL real)', () => {
     await assertConsistent(free.id);
   }, CONCURRENCY_TIMEOUT);
 
-  test('muitas wallets em paralelo: cada uma fica correta', async () => {
+  test('many wallets in parallel: each one ends up correct', async () => {
     const wallets = await Promise.all(Array.from({ length: 10 }, () => openWallet()));
     await Promise.all(
       wallets.flatMap((wallet) => [useCase.execute(command(wallet, Kind.Bet)), useCase.execute(command(wallet, Kind.Bet))]),
@@ -726,7 +726,7 @@ describe('concorrência (PostgreSQL real)', () => {
     for (const wallet of wallets) await expectNoEffect(wallet, '50.00', 3, 2);
   }, CONCURRENCY_TIMEOUT);
 
-  test('mesma chave em wallets diferentes: o lock não serializa; a unique decide, sem efeito no perdedor', async () => {
+  test('same key on different wallets: the lock does not serialize; the unique decides, no effect on the loser', async () => {
     const [a, b] = [await openWallet(), await openWallet()];
     const idempotencyKey = randomUUID();
     const results = await Promise.allSettled([
@@ -743,7 +743,7 @@ describe('concorrência (PostgreSQL real)', () => {
     expect(await eventsOf(debited[1]!.id)).toHaveLength(0);
   }, CONCURRENCY_TIMEOUT);
 
-  test('mesma chave com payloads diferentes na mesma wallet: um vence, o outro é conflito', async () => {
+  test('same key with different payloads on the same wallet: one wins, the other is a conflict', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     const results = await Promise.allSettled([
@@ -755,7 +755,7 @@ describe('concorrência (PostgreSQL real)', () => {
     await assertConsistent(wallet.id);
   }, CONCURRENCY_TIMEOUT);
 
-  test('REFUND e ROLLBACK simultâneos da mesma BET: só uma reversão é aplicada', async () => {
+  test('simultaneous REFUND and ROLLBACK of the same BET: only one reversal is applied', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     await useCase.execute(bet);
@@ -770,7 +770,7 @@ describe('concorrência (PostgreSQL real)', () => {
     await expectNoEffect(wallet, '100.00', 3, 2);
   }, CONCURRENCY_TIMEOUT);
 
-  test('referência e reversão simultâneas: nada se perde, e nenhuma ordem duplica efeito', async () => {
+  test('simultaneous reference and reversal: nothing is lost, and no order duplicates an effect', async () => {
     const wallet = await openWallet();
     const betId = randomUUID();
     const [refund, bet] = await Promise.all([
@@ -782,7 +782,7 @@ describe('concorrência (PostgreSQL real)', () => {
     await assertConsistent(wallet.id);
   }, CONCURRENCY_TIMEOUT);
 
-  test('duas instâncias do caso de uso, sem nada em comum além do banco', async () => {
+  test('two instances of the use case, sharing nothing but the database', async () => {
     const wallet = await openWallet();
     const other = buildUseCase(new MikroOrmUnitOfWork(db.orm, createPersistenceContext, 5000));
     const bet = command(wallet, Kind.Bet);
@@ -792,13 +792,13 @@ describe('concorrência (PostgreSQL real)', () => {
   }, CONCURRENCY_TIMEOUT);
 });
 
-describe('atomicidade e classificação de falhas', () => {
-  const fail = (message = 'falha injetada') => { throw new Error(message); };
+describe('atomicity and failure classification', () => {
+  const fail = (message = 'injected failure') => { throw new Error(message); };
 
   test.each<[string, (real: WageringPersistence) => Partial<WageringPersistence>]>([
-    ['ao gravar a wallet', (real) => ({ wallets: overriding(real.wallets, { update: async () => fail() }) })],
-    ['ao gravar o ledger', (real) => ({ ledger: overriding(real.ledger, { append: async () => fail() }) })],
-    ['depois do primeiro evento', (real) => {
+    ['when writing the wallet', (real) => ({ wallets: overriding(real.wallets, { update: async () => fail() }) })],
+    ['when writing the ledger', (real) => ({ ledger: overriding(real.ledger, { append: async () => fail() }) })],
+    ['after the first event', (real) => {
       let enqueued = 0;
       return {
         outbox: overriding(real.outbox, {
@@ -809,7 +809,7 @@ describe('atomicidade e classificação de falhas', () => {
         }),
       };
     }],
-  ])('falha %s desfaz transação, saldo, ledger e eventos, e o reenvio aplica uma vez', async (_where, override) => {
+  ])('failure %s undoes transaction, balance, ledger and events, and the resend applies once', async (_where, override) => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     const failing = buildUseCase(uowWith(override));
@@ -825,7 +825,7 @@ describe('atomicidade e classificação de falhas', () => {
     expect(await eventsOf(wallet.id)).toHaveLength(2);
   }, CONCURRENCY_TIMEOUT);
 
-  test('violação real de constraint: desfaz tudo e registra FAILED auditável, sem mover saldo', async () => {
+  test('real constraint violation: undoes everything and records an audited FAILED, without moving balance', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     let firstAttempt = true;
@@ -857,7 +857,7 @@ describe('atomicidade e classificação de falhas', () => {
     await expectNoEffect(wallet, '100.00', 1, 0);
   }, CONCURRENCY_TIMEOUT);
 
-  test('erro transitório real (lock timeout) não vira rejeição nem deixa rastro; o reenvio aplica', async () => {
+  test('a real transient error (lock timeout) does not become a rejection nor leave a trace; the resend applies', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     let release!: () => void;
@@ -882,13 +882,13 @@ describe('atomicidade e classificação de falhas', () => {
     expect(await useCase.execute(bet)).toMatchObject({ status: Status.Processed, idempotentReplay: false });
   }, CONCURRENCY_TIMEOUT);
 
-  test('erro transitório com o banco disponível também não registra estado terminal', async () => {
+  test('a transient error with the database available also records no terminal state', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     const failing = buildUseCase(
       uowWith((real) => ({
         ledger: overriding(real.ledger, {
-          append: async () => { throw new TransientInfrastructureError('conexão perdida'); },
+          append: async () => { throw new TransientInfrastructureError('connection lost'); },
         }),
       })),
     );
@@ -898,7 +898,7 @@ describe('atomicidade e classificação de falhas', () => {
     expect(await useCase.execute(bet)).toMatchObject({ status: Status.Processed, idempotentReplay: false });
   });
 
-  test('falha inesperada é propagada sem registrar estado terminal', async () => {
+  test('an unexpected failure is propagated without recording a terminal state', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     const failing = buildUseCase(uowWith((real) => ({ outbox: overriding(real.outbox, { enqueue: async () => fail('defeito') }) })));
@@ -907,13 +907,13 @@ describe('atomicidade e classificação de falhas', () => {
     expect(await uow.run((c) => c.transactions.findByIdempotencyKey(bet.idempotencyKey))).toBeUndefined();
   });
 
-  test('se registrar FAILED também falhar, prevalece o erro original', async () => {
+  test('if recording FAILED also fails, the original error prevails', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     let calls = 0;
     const flaky: UnitOfWork<WageringPersistence> = {
       run: async (work) => {
-        if (++calls === 2) throw new TransientInfrastructureError('banco fora');
+        if (++calls === 2) throw new TransientInfrastructureError('database down');
         return uow.run(() => { throw new PersistenceConstraintError('original'); }) as never;
       },
     };
@@ -923,7 +923,7 @@ describe('atomicidade e classificação de falhas', () => {
     await expectNoEffect(wallet, '100.00', 1, 0);
   });
 
-  test('versão só muda com saldo: a sequência completa mantém o invariante', async () => {
+  test('the version only changes with balance: the complete sequence keeps the invariant', async () => {
     const wallet = await openWallet();
     const bet = command(wallet, Kind.Bet);
     await useCase.execute(bet);
@@ -938,8 +938,8 @@ describe('atomicidade e classificação de falhas', () => {
   });
 });
 
-describe('injeção de dependências', () => {
-  test('o Nest entrega o caso de uso pronto, ligado ao banco configurado', async () => {
+describe('dependency injection', () => {
+  test('Nest delivers the ready use case, bound to the configured database', async () => {
     @Module({ imports: [ConfigModule.register(testEnv({ DATABASE_URL: db.url })), PersistenceModule, WageringModule] })
     class TestModule {}
     const app = await NestFactory.createApplicationContext(TestModule, { logger: false });

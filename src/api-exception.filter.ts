@@ -10,7 +10,7 @@ interface ErrorResponse {
   retryAfterSeconds?: number;
 }
 
-const INTERNAL_ERROR_BODY = { code: 'INTERNAL_ERROR', message: 'erro interno' };
+const INTERNAL_ERROR_BODY = { code: 'INTERNAL_ERROR', message: 'internal error' };
 
 /** Códigos dos erros que o próprio Nest ou o Express geram (rota inexistente, JSON malformado...). */
 const FRAMEWORK_CODES: Readonly<Record<number, string>> = {
@@ -39,7 +39,7 @@ function toErrorResponse(error: unknown): ErrorResponse {
   if (error instanceof TransientInfrastructureError) {
     return {
       status: HttpStatus.SERVICE_UNAVAILABLE,
-      body: { code: 'TEMPORARILY_UNAVAILABLE', message: 'indisponível no momento; a requisição pode ser reenviada' },
+      body: { code: 'TEMPORARILY_UNAVAILABLE', message: 'temporarily unavailable; the request can be retried' },
       retryAfterSeconds: 1,
     };
   }
@@ -52,7 +52,7 @@ function fromHttpException(error: HttpException): ErrorResponse {
   // Respostas nossas ficam como estão: as de negócio trazem `code`, e o health traz o próprio relatório.
   if (typeof response === 'object' && !('statusCode' in response)) return { status, body: response };
   // A mensagem padrão pode repetir trechos do corpo recebido, como no erro de JSON malformado.
-  return { status, body: { code: FRAMEWORK_CODES[status] ?? 'HTTP_ERROR', message: 'requisição não atendida' } };
+  return { status, body: { code: FRAMEWORK_CODES[status] ?? 'HTTP_ERROR', message: 'request could not be fulfilled' } };
 }
 
 @Catch()
@@ -62,7 +62,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
   catch(error: unknown, host: ArgumentsHost): void {
     const { status, body, retryAfterSeconds } = toErrorResponse(error);
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR && status !== HttpStatus.SERVICE_UNAVAILABLE) {
-      this.logger.error(`falha não tratada: ${error instanceof Error ? error.name : typeof error}`);
+      this.logger.error(`unhandled failure: ${error instanceof Error ? error.name : typeof error}`);
     }
     const response = host.switchToHttp().getResponse();
     if (retryAfterSeconds !== undefined) response.setHeader('Retry-After', String(retryAfterSeconds));

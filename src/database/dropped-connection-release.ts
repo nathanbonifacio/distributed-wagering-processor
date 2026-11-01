@@ -19,7 +19,7 @@ export function releaseDroppedConnections(pool: ClientPool): void {
   pool.on('connect', (client) => {
     client.once('end', () => {
       try {
-        client.release?.(new Error('conexão com o PostgreSQL encerrada'));
+        client.release?.(new Error('PostgreSQL connection closed'));
       } catch {
         // Já devolvida ao pool.
       }

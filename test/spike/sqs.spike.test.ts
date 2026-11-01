@@ -20,7 +20,7 @@ const sqs = new SQSClient({
 const queueUrl = async (name: string) =>
   (await sqs.send(new GetQueueUrlCommand({ QueueName: name }))).QueueUrl!;
 
-test('SQS: filas FIFO existem e a redrive policy aponta para a DLQ', async () => {
+test('SQS: FIFO queues exist and the redrive policy points to the DLQ', async () => {
   const url = await queueUrl('wager-transactions.fifo');
   const attrs = (await sqs.send(new GetQueueAttributesCommand({ QueueUrl: url, AttributeNames: ['All'] }))).Attributes!;
   expect(attrs.FifoQueue).toBe('true');
@@ -32,7 +32,7 @@ test('SQS: filas FIFO existem e a redrive policy aponta para a DLQ', async () =>
 });
 
 // Fila própria: a fila de entrada é compartilhada, e uma mensagem órfã quebraria as execuções seguintes.
-test('SQS: envia, recebe e apaga uma mensagem FIFO', async () => {
+test('SQS: sends, receives and deletes a FIFO message', async () => {
   const messageId = `spike-${crypto.randomUUID()}`;
   const { QueueUrl: url } = await sqs.send(new CreateQueueCommand({
     QueueName: `${messageId}.fifo`,

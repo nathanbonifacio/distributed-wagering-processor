@@ -87,27 +87,38 @@ export class WagerProcessor {
   processOpening(input: ProcessOpeningInput): WagerApplied {
     const { wallet, transaction, ledgerEntryId, at } = input;
     if (transaction.kind !== WagerTransactionKind.Opening) {
-      throw new InvalidWagerOperationError(`processOpening não aceita ${transaction.kind}`);
+      throw new InvalidWagerOperationError(`processOpening does not accept ${transaction.kind}`);
     }
     if (transaction.walletId !== wallet.id || !transaction.money.equals(wallet.balance)) {
-      throw new InvalidWagerOperationError('a transação de abertura deve corresponder à wallet e ao saldo inicial');
+      throw new InvalidWagerOperationError('the opening transaction must match the wallet and its initial balance');
     }
     const ledgerEntry = wallet.openingEntry({ entryId: ledgerEntryId, transactionId: transaction.id, at });
     return this.apply(wallet, transaction, undefined, ledgerEntry, at);
   }
 
+  /**
+   * Limite de tentativas esgotado. A referência ausente é REFERENCE_NOT_FOUND; a que existe, mas segue
+   * pendente em uma cadeia de reversões, é REFERENCE_NOT_PROCESSED.
+   */
+  expireReference(wallet: Wallet, transaction: WagerTransaction, reference: WagerTransaction | undefined, at: Date): WagerRejected {
+    const failureCode = reference ? FailureCode.ReferenceNotProcessed : FailureCode.ReferenceNotFound;
+    transaction.recordObservedBalance(wallet.balance);
+    transaction.expireReference(failureCode, at);
+    return { outcome: 'REJECTED', transaction, failureCode, balance: wallet.balance };
+  }
+
   private assertProcessable({ wallet, transaction, reference }: ProcessWagerInput): void {
     if (transaction.kind === WagerTransactionKind.Opening) {
-      throw new InvalidWagerOperationError('OPENING é processado por processOpening');
+      throw new InvalidWagerOperationError('OPENING is handled by processOpening');
     }
     if (transaction.isTerminal()) {
-      throw new InvalidWagerOperationError(`transação ${transaction.id} já está em ${transaction.status}`);
+      throw new InvalidWagerOperationError(`transaction ${transaction.id} is already ${transaction.status}`);
     }
     if (transaction.walletId !== wallet.id) {
-      throw new InvalidWagerOperationError(`transação ${transaction.id} não pertence à wallet ${wallet.id}`);
+      throw new InvalidWagerOperationError(`transaction ${transaction.id} does not belong to wallet ${wallet.id}`);
     }
     if (reference && reference.externalTransactionId !== transaction.referenceExternalTransactionId) {
-      throw new InvalidWagerOperationError(`a referência fornecida não é a pedida por ${transaction.id}`);
+      throw new InvalidWagerOperationError(`the supplied reference is not the one requested by ${transaction.id}`);
     }
   }
 

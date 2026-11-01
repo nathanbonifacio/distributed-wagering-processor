@@ -110,7 +110,7 @@ const countRows = async (table: string, column: string, value: string) =>
   ((await db.sql(`SELECT count(*)::int AS n FROM ${table} WHERE ${column} = ?`, [value]))[0] as any).n as number;
 
 describe('POST /wallets', () => {
-  test('saldo positivo: contrato do README, com OPENING, lançamento e eventos atômicos', async () => {
+  test('positive balance: README contract, with OPENING, ledger entry and atomic events', async () => {
     const playerId = randomUUID();
     const reply = await call('POST', '/wallets', { playerId, initialBalance: brl('1000.00') });
     expect(reply.status).toBe(201);
@@ -136,7 +136,7 @@ describe('POST /wallets', () => {
     await assertConsistent(walletId);
   });
 
-  test('saldo zero: sem transação, lançamento nem evento', async () => {
+  test('zero balance: no transaction, ledger entry or event', async () => {
     const wallet = await openWallet('0.00');
     expect(wallet).toMatchObject({ balance: brl('0.00'), version: 1 });
     expect(await countRows('wager_transactions', 'wallet_id', wallet.id)).toBe(0);
@@ -145,7 +145,7 @@ describe('POST /wallets', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('duplicada para o mesmo player e moeda: 409 estável, sem nova linha', async () => {
+  test('duplicate for the same player and currency: stable 409, no new row', async () => {
     const playerId = randomUUID();
     await openWallet('10.00', playerId);
     const reply = await call('POST', '/wallets', { playerId, initialBalance: brl('20.00') });
@@ -154,14 +154,14 @@ describe('POST /wallets', () => {
     expect(await countRows('wallets', 'player_id', playerId)).toBe(1);
   });
 
-  test('o mesmo player pode ter wallets em moedas diferentes', async () => {
+  test('the same player can have wallets in different currencies', async () => {
     const playerId = randomUUID();
     await openWallet('10.00', playerId);
     const usd = await call('POST', '/wallets', { playerId, initialBalance: { amount: '5.00', currency: 'USD' } });
     expect(usd.status).toBe(201);
   });
 
-  test('abertura duplicada simultânea: a constraint decide, um 201 e o resto 409', async () => {
+  test('simultaneous duplicate opening: the constraint decides, one 201 and the rest 409', async () => {
     const playerId = randomUUID();
     const replies = await Promise.all(
       Array.from({ length: 10 }, () => call('POST', '/wallets', { playerId, initialBalance: brl('10.00') })),
@@ -173,14 +173,14 @@ describe('POST /wallets', () => {
   }, CONCURRENCY_TIMEOUT);
 
   test.each<[string, unknown]>([
-    ['player inválido', { playerId: 'x', initialBalance: brl('1.00') }],
-    ['sem saldo', { playerId: randomUUID() }],
-    ['valor como number', { playerId: randomUUID(), initialBalance: { amount: 10, currency: 'BRL' } }],
-    ['escala errada', { playerId: randomUUID(), initialBalance: brl('10') }],
-    ['negativo', { playerId: randomUUID(), initialBalance: brl('-1.00') }],
-    ['moeda inválida', { playerId: randomUUID(), initialBalance: { amount: '1.00', currency: 'brl' } }],
-    ['campo extra', { playerId: randomUUID(), initialBalance: brl('1.00'), version: 7 }],
-  ])('payload inválido é 400: %s', async (_name, body) => {
+    ['invalid player', { playerId: 'x', initialBalance: brl('1.00') }],
+    ['no balance', { playerId: randomUUID() }],
+    ['amount as number', { playerId: randomUUID(), initialBalance: { amount: 10, currency: 'BRL' } }],
+    ['wrong scale', { playerId: randomUUID(), initialBalance: brl('10') }],
+    ['negative', { playerId: randomUUID(), initialBalance: brl('-1.00') }],
+    ['invalid currency', { playerId: randomUUID(), initialBalance: { amount: '1.00', currency: 'brl' } }],
+    ['extra field', { playerId: randomUUID(), initialBalance: brl('1.00'), version: 7 }],
+  ])('invalid payload is 400: %s', async (_name, body) => {
     const reply = await call('POST', '/wallets', body);
     expect(reply.status).toBe(400);
     expect(reply.body.code).toBe('INVALID_PAYLOAD');
@@ -188,19 +188,19 @@ describe('POST /wallets', () => {
 });
 
 describe('GET /wallets/:walletId', () => {
-  test('devolve o contrato, com o saldo como string e nada interno do ORM', async () => {
+  test('returns the contract, with the balance as a string and nothing internal from the ORM', async () => {
     const wallet = await openWallet('12.30');
     const reply = await call('GET', `/wallets/${wallet.id}`);
     expect(reply.status).toBe(200);
     expect(reply.body).toEqual({ id: wallet.id, playerId: wallet.playerId, balance: brl('12.30'), version: 1 });
   });
 
-  test('UUID em maiúsculas é a mesma wallet', async () => {
+  test('an uppercase UUID is the same wallet', async () => {
     const wallet = await openWallet();
     expect((await call('GET', `/wallets/${wallet.id.toUpperCase()}`)).body.id).toBe(wallet.id);
   });
 
-  test('inexistente é 404; id malformado é 400', async () => {
+  test('nonexistent is 404; malformed id is 400', async () => {
     const missing = await call('GET', `/wallets/${randomUUID()}`);
     expect(missing.status).toBe(404);
     expect(missing.body.code).toBe('WALLET_NOT_FOUND');
@@ -217,7 +217,7 @@ describe('GET /wallets/:walletId/ledger', () => {
     return wallet;
   }
 
-  test('traz o necessário para auditoria, em ordem', async () => {
+  test('carries what is needed for auditing, in order', async () => {
     const wallet = await walletWithEntries(2);
     const { body, status } = await call('GET', `/wallets/${wallet.id}/ledger`);
     expect(status).toBe(200);
@@ -228,7 +228,7 @@ describe('GET /wallets/:walletId/ledger', () => {
     );
   });
 
-  test('paginação estável: lançamentos inseridos entre páginas não repetem nem pulam nada', async () => {
+  test('stable pagination: entries inserted between pages neither repeat nor skip anything', async () => {
     const wallet = await walletWithEntries(4);
     const seen: number[] = [];
     let page = (await call('GET', `/wallets/${wallet.id}/ledger?limit=2`)).body;
@@ -245,7 +245,7 @@ describe('GET /wallets/:walletId/ledger', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('a última página cheia leva a uma página vazia, sem novo cursor', async () => {
+  test('a full last page leads to an empty page, with no new cursor', async () => {
     const wallet = await walletWithEntries(1);
     const first = (await call('GET', `/wallets/${wallet.id}/ledger?limit=2`)).body;
     expect(first.entries).toHaveLength(2);
@@ -253,7 +253,7 @@ describe('GET /wallets/:walletId/ledger', () => {
     expect(last).toEqual({ entries: [], nextCursor: null });
   });
 
-  test('o cursor é opaco, não o seq', async () => {
+  test('the cursor is opaque, not the seq', async () => {
     const wallet = await walletWithEntries(1);
     const { nextCursor } = (await call('GET', `/wallets/${wallet.id}/ledger?limit=1`)).body;
     expect(nextCursor).not.toMatch(/^\d+$/);
@@ -272,20 +272,20 @@ describe('GET /wallets/:walletId/ledger', () => {
     [`cursor=${Buffer.from('99999999999999999999').toString('base64url')}`],
     [`cursor=${Buffer.from('9999999999999999999').toString('base64url')}`],
     ['outro=1'],
-  ])('consulta inválida é 400: %s', async (query) => {
+  ])('invalid query is 400: %s', async (query) => {
     const wallet = await openWallet();
     const reply = await call('GET', `/wallets/${wallet.id}/ledger?${query}`);
     expect(reply.status).toBe(400);
     expect(reply.body.code).toBe('INVALID_PAYLOAD');
   });
 
-  test('wallet inexistente é 404', async () => {
+  test('nonexistent wallet is 404', async () => {
     expect((await call('GET', `/wallets/${randomUUID()}/ledger`)).status).toBe(404);
   });
 });
 
-describe('GET de transações', () => {
-  test('por id interno e por provider + id externo devolvem a mesma transação', async () => {
+describe('GET of transactions', () => {
+  test('by internal id and by provider + external id return the same transaction', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     const { body: submitted } = await submit(bet);
@@ -307,14 +307,14 @@ describe('GET de transações', () => {
     expect(byProvider.body).toEqual(byId.body);
   });
 
-  test('o id externo vale no escopo do provider', async () => {
+  test('the external id is scoped to the provider', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     await submit(bet);
     expect((await call('GET', `/providers/provider-b/wagering/transactions/${bet.externalTransactionId}`)).status).toBe(404);
   });
 
-  test('rejeitada mostra o failureCode; inexistente é 404; id malformado é 400', async () => {
+  test('a rejected one shows the failureCode; nonexistent is 404; malformed id is 400', async () => {
     const wallet = await openWallet('1.00');
     const { body } = await submit(payload(wallet, 'BET'));
     expect((await call('GET', `/wagering/transactions/${body.transactionId}`)).body).toMatchObject({
@@ -331,7 +331,7 @@ describe('GET de transações', () => {
 });
 
 describe('POST /wagering/transactions', () => {
-  test('BET: 201 com o contrato exato do README', async () => {
+  test('BET: 201 with the exact README contract', async () => {
     const wallet = await openWallet('1000.00');
     const reply = await submit(payload(wallet, 'BET'));
     expect(reply.status).toBe(201);
@@ -344,7 +344,7 @@ describe('POST /wagering/transactions', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('WIN: 201 e crédito', async () => {
+  test('WIN: 201 and credit', async () => {
     const wallet = await openWallet();
     const reply = await submit(payload(wallet, 'WIN'));
     expect(reply.status).toBe(201);
@@ -352,7 +352,7 @@ describe('POST /wagering/transactions', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('LOSS: 201 sem movimentação nem nova versão', async () => {
+  test('LOSS: 201 with no movement and no new version', async () => {
     const wallet = await openWallet();
     const reply = await submit(payload(wallet, 'LOSS'));
     expect(reply.status).toBe(201);
@@ -361,7 +361,7 @@ describe('POST /wagering/transactions', () => {
     expect((await call('GET', `/wallets/${wallet.id}`)).body.version).toBe(1);
   });
 
-  test('REFUND válido: 201 e devolve o valor', async () => {
+  test('valid REFUND: 201 and returns the amount', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     await submit(bet);
@@ -371,7 +371,7 @@ describe('POST /wagering/transactions', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('ROLLBACK válido: 201 com o inverso da referência; repetido em nova operação é 422', async () => {
+  test('valid ROLLBACK: 201 with the inverse of the reference; repeated as a new operation it is 422', async () => {
     const wallet = await openWallet();
     const win = payload(wallet, 'WIN');
     await submit(win);
@@ -385,7 +385,7 @@ describe('POST /wagering/transactions', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('BET sem saldo: 422 com status e failureCode, sem efeito', async () => {
+  test('BET without funds: 422 with status and failureCode, no effect', async () => {
     const wallet = await openWallet('10.00');
     const reply = await submit(payload(wallet, 'BET'));
     expect(reply.status).toBe(422);
@@ -403,7 +403,7 @@ describe('POST /wagering/transactions', () => {
     ['REFERENCE_KIND_INVALID', 'REFUND', {}],
     ['AMOUNT_MISMATCH', 'ROLLBACK', { money: brl('1.00') }],
     ['REFERENCE_MISMATCH', 'ROLLBACK', { roundId: 'outra' }],
-  ])('referência incompatível é 422: %s', async (failureCode, kind, overrides) => {
+  ])('mismatched reference is 422: %s', async (failureCode, kind, overrides) => {
     const wallet = await openWallet();
     const win = payload(wallet, 'WIN');
     await submit(win);
@@ -412,7 +412,7 @@ describe('POST /wagering/transactions', () => {
     expect(reply.body.failureCode).toBe(failureCode);
   });
 
-  test('reversão que deixaria saldo negativo é 422 com código distinto', async () => {
+  test('a reversal that would leave a negative balance is 422 with a distinct code', async () => {
     const wallet = await openWallet('0.00');
     const win = payload(wallet, 'WIN');
     await submit(win);
@@ -423,7 +423,7 @@ describe('POST /wagering/transactions', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('PENDING_REFERENCE: 202 sem saldo, persistida e agendada; o replay continua 202', async () => {
+  test('PENDING_REFERENCE: 202 without balance, persisted and scheduled; the replay is still 202', async () => {
     const wallet = await openWallet();
     const refund = payload(wallet, 'REFUND', { referenceExternalTransactionId: 'ainda-nao-chegou' });
     const reply = await submit(refund);
@@ -441,7 +441,7 @@ describe('POST /wagering/transactions', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('replay: 200, mesmo id e o saldo histórico, sem novo efeito', async () => {
+  test('replay: 200, same id and the historical balance, no new effect', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     const first = await submit(bet);
@@ -456,7 +456,7 @@ describe('POST /wagering/transactions', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('replay de rejeição continua 422', async () => {
+  test('replay of a rejection is still 422', async () => {
     const wallet = await openWallet('1.00');
     const bet = payload(wallet, 'BET');
     await submit(bet);
@@ -465,7 +465,7 @@ describe('POST /wagering/transactions', () => {
     expect(replay.body).toMatchObject({ failureCode: 'INSUFFICIENT_FUNDS', idempotentReplay: true });
   });
 
-  test('replay de FAILED: 500 com o estado auditável, sem aplicar por cima', async () => {
+  test('replay of FAILED: 500 with the audited state, without applying on top', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     const money = Money.from(bet.money);
@@ -488,7 +488,7 @@ describe('POST /wagering/transactions', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('a ordem das chaves do JSON não muda a identidade da requisição', async () => {
+  test('the order of the JSON keys does not change the identity of the request', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     await submit(bet);
@@ -497,7 +497,7 @@ describe('POST /wagering/transactions', () => {
     expect(replay.status).toBe(200);
   });
 
-  test('UUID em maiúsculas é a mesma operação: replay, e nunca PLAYER_WALLET_MISMATCH', async () => {
+  test('an uppercase UUID is the same operation: replay, and never PLAYER_WALLET_MISMATCH', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     const first = await submit(payload(wallet, 'BET', { ...bet, playerId: wallet.playerId.toUpperCase(), walletId: wallet.id.toUpperCase() }), `k:${bet.externalTransactionId}`);
@@ -505,7 +505,7 @@ describe('POST /wagering/transactions', () => {
     expect((await submit(bet, `k:${bet.externalTransactionId}`)).status).toBe(200);
   });
 
-  test('mesma chave com payload diferente: 409, sem efeito', async () => {
+  test('same key with a different payload: 409, no effect', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     await submit(bet);
@@ -516,7 +516,7 @@ describe('POST /wagering/transactions', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('wallet inexistente: 422 WALLET_NOT_FOUND, sem persistir', async () => {
+  test('nonexistent wallet: 422 WALLET_NOT_FOUND, nothing persisted', async () => {
     const wallet = await openWallet();
     const missing = payload(wallet, 'BET', { walletId: randomUUID() });
     const reply = await submit(missing);
@@ -525,14 +525,14 @@ describe('POST /wagering/transactions', () => {
     expect(await countRows('wager_transactions', 'external_transaction_id', missing.externalTransactionId)).toBe(0);
   });
 
-  test('wallet de outro player é rejeição de negócio', async () => {
+  test('a wallet of another player is a business rejection', async () => {
     const wallet = await openWallet();
     const reply = await submit(payload(wallet, 'BET', { playerId: randomUUID() }));
     expect(reply.status).toBe(422);
     expect(reply.body.failureCode).toBe('PLAYER_WALLET_MISMATCH');
   });
 
-  test('Idempotency-Key ausente ou vazia: 400, sem gravar', async () => {
+  test('missing or empty Idempotency-Key: 400, nothing written', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     const absent = await call('POST', '/wagering/transactions', bet);
@@ -543,7 +543,7 @@ describe('POST /wagering/transactions', () => {
     expect(await countRows('wager_transactions', 'external_transaction_id', bet.externalTransactionId)).toBe(0);
   });
 
-  test('OPENING externo e provider reservado: 400, sem gravar', async () => {
+  test('external OPENING and reserved provider: 400, nothing written', async () => {
     const wallet = await openWallet();
     const opening = payload(wallet, 'OPENING');
     const external = await submit(opening);
@@ -557,24 +557,24 @@ describe('POST /wagering/transactions', () => {
   });
 
   test.each<[string, Record<string, unknown>]>([
-    ['valor como number', { money: { amount: 25, currency: 'BRL' } }],
-    ['valor sem escala', { money: brl('25') }],
-    ['mais de 2 casas', { money: brl('25.001') }],
-    ['notação científica', { money: brl('1e2') }],
-    ['negativo', { money: brl('-1.00') }],
-    ['moeda minúscula', { money: { amount: '1.00', currency: 'brl' } }],
-    ['kind desconhecido', { kind: 'JACKPOT' }],
-    ['playerId inválido', { playerId: 'abc' }],
-    ['walletId inválido', { walletId: 'abc' }],
-    ['roundId vazio', { roundId: '' }],
-    ['gameId com NUL', { gameId: 'a\u0000b' }],
-    ['provider ausente', { providerId: undefined }],
-    ['id externo longo', { externalTransactionId: 'x'.repeat(256) }],
-    ['campo desconhecido', { extra: true }],
-    ['referência nula', { referenceExternalTransactionId: null }],
-    ['BET com referência', { referenceExternalTransactionId: 'y' }],
-    ['BET de valor zero', { money: brl('0.00') }],
-  ])('payload inválido é 400: %s', async (_name, overrides) => {
+    ['amount as number', { money: { amount: 25, currency: 'BRL' } }],
+    ['amount without scale', { money: brl('25') }],
+    ['more than 2 decimal places', { money: brl('25.001') }],
+    ['scientific notation', { money: brl('1e2') }],
+    ['negative', { money: brl('-1.00') }],
+    ['lowercase currency', { money: { amount: '1.00', currency: 'brl' } }],
+    ['unknown kind', { kind: 'JACKPOT' }],
+    ['invalid playerId', { playerId: 'abc' }],
+    ['invalid walletId', { walletId: 'abc' }],
+    ['empty roundId', { roundId: '' }],
+    ['gameId with NUL', { gameId: 'a\u0000b' }],
+    ['missing provider', { providerId: undefined }],
+    ['long external id', { externalTransactionId: 'x'.repeat(256) }],
+    ['unknown field', { extra: true }],
+    ['null reference', { referenceExternalTransactionId: null }],
+    ['BET with a reference', { referenceExternalTransactionId: 'y' }],
+    ['BET with zero amount', { money: brl('0.00') }],
+  ])('invalid payload is 400: %s', async (_name, overrides) => {
     const wallet = await openWallet();
     const reply = await call('POST', '/wagering/transactions', payload(wallet, 'BET', overrides), { 'Idempotency-Key': randomUUID() });
     expect(reply.status).toBe(400);
@@ -582,13 +582,13 @@ describe('POST /wagering/transactions', () => {
     await assertConsistent(wallet.id);
   });
 
-  test('REFUND e ROLLBACK sem referência: 400', async () => {
+  test('REFUND and ROLLBACK without a reference: 400', async () => {
     const wallet = await openWallet();
     expect((await submit(payload(wallet, 'REFUND'))).status).toBe(400);
     expect((await submit(payload(wallet, 'ROLLBACK'))).status).toBe(400);
   });
 
-  test('JSON malformado: 400, sem repetir o corpo na resposta', async () => {
+  test('malformed JSON: 400, without echoing the body in the response', async () => {
     const reply = await call('POST', '/wagering/transactions', '{"segredo":', { 'Idempotency-Key': 'k' });
     expect(reply.status).toBe(400);
     expect(reply.body.code).toBe('INVALID_PAYLOAD');
@@ -596,8 +596,8 @@ describe('POST /wagering/transactions', () => {
   });
 });
 
-describe('concorrência pela API', () => {
-  test('duas BETs de 80.00 sobre 100.00: uma aprovada, uma rejeitada, saldo 20.00 e um débito', async () => {
+describe('concurrency through the API', () => {
+  test('two BETs of 80.00 over 100.00: one approved, one rejected, balance 20.00 and one debit', async () => {
     const wallet = await openWallet('100.00');
     const replies = await Promise.all([
       submit(payload(wallet, 'BET', { money: brl('80.00') })),
@@ -610,7 +610,7 @@ describe('concorrência pela API', () => {
     await assertConsistent(wallet.id);
   }, CONCURRENCY_TIMEOUT);
 
-  test('a mesma BET 50 vezes: um 201, 49 replays e um único débito', async () => {
+  test('the same BET 50 times: one 201, 49 replays and a single debit', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     const replies = await Promise.all(Array.from({ length: 50 }, () => submit(bet)));
@@ -622,8 +622,8 @@ describe('concorrência pela API', () => {
   }, CONCURRENCY_TIMEOUT);
 });
 
-describe('erros e infraestrutura', () => {
-  test('lock timeout real: 503 com Retry-After, sem rejeição definitiva; o reenvio aplica', async () => {
+describe('errors and infrastructure', () => {
+  test('real lock timeout: 503 with Retry-After, no definitive rejection; the resend applies', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     const impatient = await startApi({ DATABASE_URL: db.url, DB_LOCK_TIMEOUT_MS: '100' });
@@ -644,7 +644,7 @@ describe('erros e infraestrutura', () => {
     await assertConsistent(wallet.id);
   }, CONCURRENCY_TIMEOUT);
 
-  test('banco inacessível: 503 também nas consultas, sem vazar endereço nem SQL', async () => {
+  test('database unreachable: 503 on queries too, without leaking address or SQL', async () => {
     const down = await startApi({ DATABASE_URL: 'postgres://wagering:segredo@127.0.0.1:1/wagering', DB_CONNECT_TIMEOUT_MS: '500' });
     try {
       const reply = await call('GET', `/wallets/${randomUUID()}`, undefined, {}, down.url);
@@ -657,20 +657,20 @@ describe('erros e infraestrutura', () => {
     }
   }, CONCURRENCY_TIMEOUT);
 
-  test('rota inexistente: 404 no mesmo contrato de erro', async () => {
+  test('nonexistent route: 404 in the same error contract', async () => {
     const reply = await call('GET', '/nao-existe');
     expect(reply.status).toBe(404);
     expect(reply.body.code).toBe('NOT_FOUND');
   });
 
-  test('health continua público e com o próprio formato', async () => {
+  test('health stays public and with its own format', async () => {
     expect((await call('GET', '/health/live')).body).toEqual({ status: 'ok' });
     const ready = await call('GET', '/health/ready');
     expect(ready.status).toBe(200);
     expect(Object.keys(ready.body.checks).sort()).toEqual(['postgres', 'sqs', 'sqsEvents']);
   });
 
-  test('o guard de autenticação está nas rotas de negócio e fora do health', () => {
+  test('the authentication guard is on the business routes and outside health', () => {
     const guards = (target: object): unknown[] => Reflect.getMetadata('__guards__', target) ?? [];
     for (const controller of [WalletController, WalletOpeningController, WageringController]) {
       expect(guards(controller)).toHaveLength(1);

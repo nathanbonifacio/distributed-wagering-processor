@@ -38,15 +38,15 @@ afterAll(() => { Logger.overrideLogger(false); });
 
 describe('ApiExceptionFilter', () => {
   test.each<[string, Error, number, string]>([
-    ['conflito de idempotência', new IdempotencyConflictError('x'), 409, 'IDEMPOTENCY_KEY_REUSED'],
-    ['wallet duplicada', new WalletAlreadyExistsError('x'), 409, 'WALLET_ALREADY_EXISTS'],
-    ['wallet inexistente na submissão', new WalletNotFoundError('x'), 422, 'WALLET_NOT_FOUND'],
-    ['transação inválida', new InvalidWagerTransactionError('x'), 400, 'INVALID_PAYLOAD'],
-    ['valor inválido', new InvalidMoneyError('x'), 400, 'INVALID_PAYLOAD'],
-    ['transitório', new TransientInfrastructureError('x'), 503, 'TEMPORARILY_UNAVAILABLE'],
-    ['permanente', new PermanentInfrastructureError('x'), 500, 'INTERNAL_ERROR'],
-    ['defeito de programação', new InvalidWagerOperationError('x'), 500, 'INTERNAL_ERROR'],
-    ['erro desconhecido', new Error('x'), 500, 'INTERNAL_ERROR'],
+    ['idempotency conflict', new IdempotencyConflictError('x'), 409, 'IDEMPOTENCY_KEY_REUSED'],
+    ['duplicate wallet', new WalletAlreadyExistsError('x'), 409, 'WALLET_ALREADY_EXISTS'],
+    ['nonexistent wallet on submission', new WalletNotFoundError('x'), 422, 'WALLET_NOT_FOUND'],
+    ['invalid transaction', new InvalidWagerTransactionError('x'), 400, 'INVALID_PAYLOAD'],
+    ['invalid amount', new InvalidMoneyError('x'), 400, 'INVALID_PAYLOAD'],
+    ['transient', new TransientInfrastructureError('x'), 503, 'TEMPORARILY_UNAVAILABLE'],
+    ['permanent', new PermanentInfrastructureError('x'), 500, 'INTERNAL_ERROR'],
+    ['programming defect', new InvalidWagerOperationError('x'), 500, 'INTERNAL_ERROR'],
+    ['unknown error', new Error('x'), 500, 'INTERNAL_ERROR'],
   ])('%s', (_name, error, status, code) => {
     const reply = handle(error);
     expect(reply.status).toBe(status);
@@ -54,24 +54,24 @@ describe('ApiExceptionFilter', () => {
     expect('stack' in reply.body).toBe(false);
   });
 
-  test('só o transitório traz Retry-After', () => {
+  test('only the transient error carries Retry-After', () => {
     expect(handle(new TransientInfrastructureError('x')).headers['Retry-After']).toBe('1');
     expect(handle(new PermanentInfrastructureError('x')).headers['Retry-After']).toBeUndefined();
   });
 
   test.each<[string, Error]>([
-    ['erro desconhecido', new Error(SECRET_SQL)],
-    ['constraint com a causa do driver', new PersistenceConstraintError('c', { cause: new Error(SECRET_SQL) })],
-    ['permanente', new PermanentInfrastructureError(SECRET_SQL)],
-    ['transitório', new TransientInfrastructureError(SECRET_SQL)],
-  ])('nem a resposta nem o log repetem a mensagem interna: %s', (_name, error) => {
+    ['unknown error', new Error(SECRET_SQL)],
+    ['constraint with the driver cause', new PersistenceConstraintError('c', { cause: new Error(SECRET_SQL) })],
+    ['permanent', new PermanentInfrastructureError(SECRET_SQL)],
+    ['transient', new TransientInfrastructureError(SECRET_SQL)],
+  ])('neither the response nor the log repeats the internal message: %s', (_name, error) => {
     logged.length = 0;
     const reply = handle(error);
     expect(JSON.stringify(reply.body)).not.toContain('senha-secreta');
     expect(logged.join(' ')).not.toContain('senha-secreta');
   });
 
-  test('falha não tratada é registrada, mas transitório e erro de negócio não', () => {
+  test('an unhandled failure is logged, but a transient or business error is not', () => {
     logged.length = 0;
     handle(new TransientInfrastructureError('x'));
     handle(new IdempotencyConflictError('x'));
@@ -80,14 +80,14 @@ describe('ApiExceptionFilter', () => {
     expect(logged).toHaveLength(1);
   });
 
-  test('erro do framework ganha o contrato comum e não repete o corpo recebido', () => {
+  test('a framework error gets the common contract and does not echo the received body', () => {
     const reply = handle(new BadRequestException('Unexpected token: {"cartao":"123"'));
     expect(reply.status).toBe(400);
     expect(reply.body.code).toBe('INVALID_PAYLOAD');
     expect(JSON.stringify(reply.body)).not.toContain('cartao');
   });
 
-  test('resposta já estruturada passa como está: negócio e relatório do health', () => {
+  test('an already structured response passes through as is: business and health report', () => {
     expect(handle(new NotFoundException({ code: 'WALLET_NOT_FOUND', message: 'm' })).body).toEqual({ code: 'WALLET_NOT_FOUND', message: 'm' });
     const report = { status: 'degraded', checks: {} };
     const reply = handle(new ServiceUnavailableException(report));

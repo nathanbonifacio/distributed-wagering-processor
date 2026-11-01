@@ -71,7 +71,7 @@ export class MikroOrmWagerTransactionRepository implements WagerTransactionRepos
         processedAt: row.processedAt,
       },
     );
-    if (affected !== 1) throw new Error(`transação ${transaction.id} não encontrada para atualizar`);
+    if (affected !== 1) throw new Error(`transaction ${transaction.id} not found for update`);
   }
 
   private async findOne(where: FilterQuery<WagerTransactionRow>): Promise<WagerTransaction | undefined> {

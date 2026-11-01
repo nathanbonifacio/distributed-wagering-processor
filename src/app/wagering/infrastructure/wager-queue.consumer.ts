@@ -1,6 +1,7 @@
 import {
   ChangeMessageVisibilityCommand,
   DeleteMessageCommand,
+  GetQueueAttributesCommand,
   GetQueueUrlCommand,
   type Message,
   ReceiveMessageCommand,
@@ -16,11 +17,15 @@ import { wagerMessageSchema } from '../application/wager-message.schema';
 import { WagerTransactionStatus } from '../domain/wager-transaction.entity';
 import { IdempotencyConflictError, InvalidWagerTransactionError } from '../domain/wagering-errors';
 import { PermanentInfrastructureError } from '../../../shared/application/infrastructure-error';
+import { runWithContext } from '../../../shared/application/request-context';
+import type { AppMetrics } from '../../../shared/observability/app-metrics';
 
 export const WAGER_CONSUMER_NAME = 'wager-transactions-consumer';
 
 const MAX_VISIBILITY_SECONDS = 300;
 const RECEIVE_ERROR_DELAY_MS = 1000;
+/** A leitura da profundidade da DLQ não pode travar a coleta das métricas. */
+const DLQ_DEPTH_TIMEOUT_MS = 2000;
 
 export interface WagerConsumerOptions {
   inputQueueName: string;
@@ -53,6 +58,8 @@ function permanentFailureCode(error: unknown): string | undefined {
 export class WagerQueueConsumer implements OnApplicationBootstrap, BeforeApplicationShutdown {
   private readonly logger = new Logger(WagerQueueConsumer.name);
   private readonly stopping = new AbortController();
+  /** Mensagens que este processo começou e ainda não terminou: no prazo do shutdown, voltam para a fila. */
+  private readonly inFlight = new Set<Message>();
   private running?: Promise<void>;
   private inputQueueUrl?: string;
   private dlqQueueUrl?: string;
@@ -61,19 +68,31 @@ export class WagerQueueConsumer implements OnApplicationBootstrap, BeforeApplica
     private readonly sqs: SQSClient,
     private readonly processWager: ProcessWagerTransaction,
     private readonly options: WagerConsumerOptions,
-  ) {}
+    private readonly metrics?: AppMetrics,
+  ) {
+    // Cobre também o redrive automático da fila, que este processo não vê passar.
+    metrics?.gauge('wager_dlq_depth', 'Messages waiting in the dead letter queue.', () => this.dlqDepth());
+  }
 
   onApplicationBootstrap(): void {
     this.running = this.pollUntilStopped();
   }
 
-  /** Para de receber, conclui o que está em andamento, dentro do prazo, e devolve o que nem começou. */
+  /**
+   * Para de receber e conclui o que está em andamento, dentro do prazo. Se o prazo vencer, devolve à fila o que
+   * ainda não terminou, para outra instância assumir sem esperar a visibilidade expirar. Se aquela transação
+   * ainda confirmar, a redelivery é um replay: o inbox e a idempotency key garantem um único efeito.
+   */
   async beforeApplicationShutdown(): Promise<void> {
     this.stopping.abort();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const deadline = new Promise<void>((resolve) => { timer = setTimeout(resolve, this.options.shutdownTimeoutMs); });
-    await Promise.race([this.running, deadline]);
+    const deadline = new Promise<'deadline'>((resolve) => { timer = setTimeout(() => resolve('deadline'), this.options.shutdownTimeoutMs); });
+    const outcome = await Promise.race([this.running?.then(() => 'finished' as const), deadline]);
     clearTimeout(timer);
+    if (outcome === 'deadline' && this.inFlight.size > 0) {
+      this.logger.warn({ msg: 'shutdown deadline reached: returning in-flight messages to the queue', inFlight: this.inFlight.size });
+      await Promise.all([...this.inFlight].map((message) => this.release(message)));
+    }
   }
 
   private get stopped(): boolean {
@@ -96,7 +115,7 @@ export class WagerQueueConsumer implements OnApplicationBootstrap, BeforeApplica
         await this.processBatch(Messages);
       } catch (error) {
         if (this.stopped) return;
-        this.logger.warn(`failed to receive messages: ${error instanceof Error ? error.name : typeof error}`);
+        this.logger.warn({ msg: 'failed to receive messages', error: error instanceof Error ? error.name : typeof error });
         await Bun.sleep(RECEIVE_ERROR_DELAY_MS);
       }
     }
@@ -121,8 +140,19 @@ export class WagerQueueConsumer implements OnApplicationBootstrap, BeforeApplica
     }
   }
 
+  /** Todo log e todo evento da mensagem compartilham o messageId do envelope (ou o do SQS, se ele nem for lido). */
   private async handle(message: Message): Promise<HandleOutcome> {
     const parsed = this.parse(message);
+    const id = parsed?.messageId ?? message.MessageId;
+    this.inFlight.add(message);
+    try {
+      return await runWithContext({ correlationId: id, messageId: id }, () => this.handleMessage(message, parsed));
+    } finally {
+      this.inFlight.delete(message);
+    }
+  }
+
+  private async handleMessage(message: Message, parsed: ReturnType<WagerQueueConsumer['parse']>): Promise<HandleOutcome> {
     if (!parsed) {
       await this.deadLetter(message, 'INVALID_MESSAGE');
       return 'done';
@@ -168,7 +198,11 @@ export class WagerQueueConsumer implements OnApplicationBootstrap, BeforeApplica
 
   /** Só apaga depois de a DLQ aceitar: se o envio falhar, a mensagem volta e nada se perde. */
   private async deadLetter(message: Message, reason: string): Promise<void> {
-    this.logger.warn(`moving message ${message.MessageId} to the DLQ: ${reason}`);
+    this.logger.warn({
+      msg: 'moving message to the DLQ',
+      reason,
+      receiveCount: Number(message.Attributes?.ApproximateReceiveCount ?? 1),
+    });
     try {
       this.dlqQueueUrl ??= (await this.sqs.send(new GetQueueUrlCommand({ QueueName: this.options.dlqQueueName }))).QueueUrl!;
       await this.sqs.send(
@@ -181,6 +215,7 @@ export class WagerQueueConsumer implements OnApplicationBootstrap, BeforeApplica
         }),
       );
       await this.sqs.send(new DeleteMessageCommand({ QueueUrl: await this.inputUrl(), ReceiptHandle: message.ReceiptHandle! }));
+      this.metrics?.dlqMessages.inc({ reason });
     } catch (error) {
       this.logFailure('move to the DLQ', error);
     }
@@ -188,7 +223,10 @@ export class WagerQueueConsumer implements OnApplicationBootstrap, BeforeApplica
 
   private async retryLater(message: Message): Promise<void> {
     const receiveCount = Number(message.Attributes?.ApproximateReceiveCount ?? 1);
-    await this.changeVisibility(message, Math.min(this.options.retryBaseSeconds * 2 ** (receiveCount - 1), MAX_VISIBILITY_SECONDS));
+    const delaySeconds = Math.min(this.options.retryBaseSeconds * 2 ** (receiveCount - 1), MAX_VISIBILITY_SECONDS);
+    this.metrics?.retries.inc({ kind: 'sqs_redelivery' });
+    this.logger.warn({ msg: 'processing failed: redelivery scheduled', receiveCount, delaySeconds });
+    await this.changeVisibility(message, delaySeconds);
   }
 
   private async release(message: Message): Promise<void> {
@@ -206,6 +244,15 @@ export class WagerQueueConsumer implements OnApplicationBootstrap, BeforeApplica
     }
   }
 
+  private async dlqDepth(): Promise<number> {
+    this.dlqQueueUrl ??= (await this.sqs.send(new GetQueueUrlCommand({ QueueName: this.options.dlqQueueName }))).QueueUrl!;
+    const { Attributes } = await this.sqs.send(
+      new GetQueueAttributesCommand({ QueueUrl: this.dlqQueueUrl, AttributeNames: ['ApproximateNumberOfMessages'] }),
+      { abortSignal: AbortSignal.timeout(DLQ_DEPTH_TIMEOUT_MS) },
+    );
+    return Number(Attributes?.ApproximateNumberOfMessages ?? 0);
+  }
+
   private async inputUrl(): Promise<string> {
     this.inputQueueUrl ??= (await this.sqs.send(new GetQueueUrlCommand({ QueueName: this.options.inputQueueName }))).QueueUrl!;
     return this.inputQueueUrl;
@@ -213,6 +260,6 @@ export class WagerQueueConsumer implements OnApplicationBootstrap, BeforeApplica
 
   /** Só o nome do erro: a mensagem pode trazer endereços internos. */
   private logFailure(action: string, error: unknown): void {
-    this.logger.warn(`failed to ${action}: ${error instanceof Error ? error.name : typeof error}`);
+    this.logger.warn({ msg: `failed to ${action}`, error: error instanceof Error ? error.name : typeof error });
   }
 }

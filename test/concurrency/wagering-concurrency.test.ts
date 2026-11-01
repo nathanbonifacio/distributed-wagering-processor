@@ -93,7 +93,7 @@ async function underBarrier(wallet: OpenedWallet, requests: () => Array<Promise<
   return Promise.all(pending);
 }
 
-describe('README seção 8: duas BETs de 80.00 sobre 100.00', () => {
+describe('README section 8: two BETs of 80.00 over 100.00', () => {
   async function assertScenario(wallet: OpenedWallet, replies: Reply[], bets: any[]) {
     expect(statuses(replies)).toEqual([201, 422]);
     expect(replies.find((r) => r.status === 422)!.body).toMatchObject({ status: 'REJECTED', failureCode: 'INSUFFICIENT_FUNDS', balance: brl('20.00') });
@@ -116,7 +116,7 @@ describe('README seção 8: duas BETs de 80.00 sobre 100.00', () => {
     expect(await movementsOf(db, wallet.id)).toHaveLength(1);
   }
 
-  test(`corrida livre, ${ROUNDS} rodadas`, async () => {
+  test(`free race, ${ROUNDS} rounds`, async () => {
     for (let round = 0; round < ROUNDS; round++) {
       const wallet = await openWallet();
       const bets = [payload(wallet, 'BET', { money: brl('80.00') }), payload(wallet, 'BET', { money: brl('80.00') })];
@@ -124,7 +124,7 @@ describe('README seção 8: duas BETs de 80.00 sobre 100.00', () => {
     }
   }, TIMEOUT);
 
-  test('com as duas sessões comprovadamente disputando o lock', async () => {
+  test('with both sessions provably competing for the lock', async () => {
     for (let round = 0; round < 5; round++) {
       const wallet = await openWallet();
       const bets = [payload(wallet, 'BET', { money: brl('80.00') }), payload(wallet, 'BET', { money: brl('80.00') })];
@@ -133,7 +133,7 @@ describe('README seção 8: duas BETs de 80.00 sobre 100.00', () => {
   }, TIMEOUT);
 });
 
-describe('README seção 13.1: a mesma aposta 50 vezes', () => {
+describe('README section 13.1: the same bet 50 times', () => {
   async function assertSingleEffect(wallet: OpenedWallet, bet: any, replies: Reply[]) {
     expect(replies.filter((r) => r.status === 201)).toHaveLength(1);
     expect(replies.filter((r) => r.status === 200)).toHaveLength(49);
@@ -149,7 +149,7 @@ describe('README seção 13.1: a mesma aposta 50 vezes', () => {
     await assertFinancialInvariants(db, wallet.id);
   }
 
-  test('corrida livre em 3 instâncias, 5 rodadas', async () => {
+  test('free race on 3 instances, 5 rounds', async () => {
     for (let round = 0; round < 5; round++) {
       const wallet = await openWallet();
       const bet = payload(wallet, 'BET');
@@ -157,7 +157,7 @@ describe('README seção 13.1: a mesma aposta 50 vezes', () => {
     }
   }, TIMEOUT);
 
-  test('com dezenas de sessões presas no lock ao mesmo tempo, e o replay preserva o saldo depois', async () => {
+  test('with dozens of sessions stuck on the lock at the same time, and the replay preserves the balance afterwards', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     // 3 instâncias com 10 conexões cada: ao menos 25 das 50 chegam juntas ao lock.
@@ -171,7 +171,7 @@ describe('README seção 13.1: a mesma aposta 50 vezes', () => {
   }, TIMEOUT);
 });
 
-describe('mesma chave com payload divergente', () => {
+describe('same key with a divergent payload', () => {
   /** O vencedor depende de quem pega o lock; o que não depende é a contagem e o estado. */
   async function assertConflictOutcome(key: string, groupA: Reply[], groupB: Reply[]) {
     const [winners, losers] = groupA.some((r) => r.status === 201) ? [groupA, groupB] : [groupB, groupA];
@@ -187,7 +187,7 @@ describe('mesma chave com payload divergente', () => {
     return winners === groupA ? 'A' : 'B';
   }
 
-  test('mesma wallet, sob barreira: um único payload vence, e o saldo é o dele', async () => {
+  test('same wallet, under a barrier: a single payload wins, and the balance is its own', async () => {
     for (let round = 0; round < 8; round++) {
       const wallet = await openWallet();
       const a = payload(wallet, 'BET', { money: brl('10.00') });
@@ -205,7 +205,7 @@ describe('mesma chave com payload divergente', () => {
     }
   }, TIMEOUT);
 
-  test(`wallets diferentes, onde o lock não serializa e a UNIQUE decide, ${ROUNDS} rodadas`, async () => {
+  test(`different wallets, where the lock does not serialize and the UNIQUE decides, ${ROUNDS} rounds`, async () => {
     for (let round = 0; round < ROUNDS; round++) {
       const [walletA, walletB] = [await openWallet(), await openWallet()];
       const key = randomUUID();
@@ -223,7 +223,7 @@ describe('mesma chave com payload divergente', () => {
     }
   }, TIMEOUT);
 
-  test('mesmo id externo com chaves diferentes: um vence, o resto é conflito', async () => {
+  test('same external id with different keys: one wins, the rest is a conflict', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     const replies = await underBarrier(wallet, () => Array.from({ length: 6 }, (_, i) => submit(bet, `chave-${bet.externalTransactionId}-${i}`)), 3);
@@ -233,8 +233,8 @@ describe('mesma chave com payload divergente', () => {
   }, TIMEOUT);
 });
 
-describe('abertura de wallet', () => {
-  test(`abertura duplicada em paralelo, ${ROUNDS} rodadas: a constraint decide, com um 201 e o resto 409`, async () => {
+describe('wallet opening', () => {
+  test(`duplicate opening in parallel, ${ROUNDS} rounds: the constraint decides, with one 201 and the rest 409`, async () => {
     for (let round = 0; round < ROUNDS; round++) {
       const playerId = randomUUID();
       const replies = await Promise.all(
@@ -249,8 +249,8 @@ describe('abertura de wallet', () => {
   }, TIMEOUT);
 });
 
-describe('wallets diferentes', () => {
-  test('o bloqueio de uma wallet não impede outra, mesmo com a primeira ainda bloqueada', async () => {
+describe('different wallets', () => {
+  test('the lock on one wallet does not block another, even while the first is still blocked', async () => {
     const [held, free] = [await openWallet(), await openWallet()];
     const lock = await holdWalletLock(db, held.id);
     let heldFinished = false;
@@ -271,7 +271,7 @@ describe('wallets diferentes', () => {
     await assertFinancialInvariants(db, free.id);
   }, TIMEOUT);
 
-  test('pool de uma instância esgotado por uma wallet: outra instância segue, e a mesma espera sem errar', async () => {
+  test('pool of one instance exhausted by one wallet: another instance carries on, and the same one waits without failing', async () => {
     const [hot, otherInstance, samePool] = [await openWallet(), await openWallet(), await openWallet()];
     const lock = await holdWalletLock(db, hot.id);
     const stuck = Array.from({ length: 15 }, () => submit(payload(hot, 'BET', { money: brl('1.00') }), undefined, 0));
@@ -291,7 +291,7 @@ describe('wallets diferentes', () => {
     for (const wallet of [hot, otherInstance, samePool]) await assertFinancialInvariants(db, wallet.id);
   }, TIMEOUT);
 
-  test('muitas wallets em paralelo: ledgers independentes e saldos corretos', async () => {
+  test('many wallets in parallel: independent ledgers and correct balances', async () => {
     const wallets = await Promise.all(Array.from({ length: 12 }, () => openWallet('100.00')));
     const requests = wallets.flatMap((wallet, index) => [
       submit(payload(wallet, 'BET', { money: brl(`${index + 1}.00`) })),
@@ -312,8 +312,8 @@ describe('wallets diferentes', () => {
   }, TIMEOUT);
 });
 
-describe('operações distintas na mesma wallet', () => {
-  test(`BET, WIN e LOSS em qualquer ordem, ${ROUNDS} rodadas: o estado bate com o que foi aplicado`, async () => {
+describe('distinct operations on the same wallet', () => {
+  test(`BET, WIN and LOSS in any order, ${ROUNDS} rounds: the state matches what was applied`, async () => {
     for (let round = 0; round < ROUNDS; round++) {
       const wallet = await openWallet('30.00');
       const commands = [
@@ -346,7 +346,7 @@ describe('operações distintas na mesma wallet', () => {
     }
   }, TIMEOUT);
 
-  test('somente LOSS em paralelo não muda versão nem cria lançamento', async () => {
+  test('only LOSS in parallel changes neither the version nor creates an entry', async () => {
     const wallet = await openWallet();
     const replies = await underBarrier(wallet, () => Array.from({ length: 8 }, () => submit(payload(wallet, 'LOSS'))), 4);
     expect(new Set(statuses(replies))).toEqual(new Set([201]));
@@ -355,7 +355,7 @@ describe('operações distintas na mesma wallet', () => {
     await assertFinancialInvariants(db, wallet.id);
   }, TIMEOUT);
 
-  test('o saldo é lido depois do lock: um débito confirmado durante a espera decide a próxima BET', async () => {
+  test('the balance is read after the lock: a debit confirmed during the wait decides the next BET', async () => {
     const wallet = await openWallet();
     const at = new Date();
     const lock = await holdWalletLock(db, wallet.id, async (em) => {
@@ -378,7 +378,7 @@ describe('operações distintas na mesma wallet', () => {
         createdAt: at,
       });
       const outcome = new WagerProcessor().process({ wallet: locked, transaction: earlier, ledgerEntryId: randomUUID(), at });
-      if (outcome.outcome !== 'APPLIED') throw new Error('o débito de preparação deveria ser aplicado');
+      if (outcome.outcome !== 'APPLIED') throw new Error('the setup debit should have been applied');
       await persistence.transactions.insertIfAbsent(earlier);
       await persistence.wallets.update(locked, 1);
       await persistence.ledger.append(outcome.ledgerEntry!);
@@ -396,10 +396,10 @@ describe('operações distintas na mesma wallet', () => {
   }, TIMEOUT);
 });
 
-describe('REFUND e ROLLBACK concorrentes', () => {
+describe('concurrent REFUND and ROLLBACK', () => {
   // Interpretação adicional: REFUND e ROLLBACK da mesma operação são mutuamente exclusivos. É mais
   // estrito que a regra 4 do README (que só proíbe repetir o tipo) e impede crédito duplicado.
-  test(`REFUND e ROLLBACK da mesma BET, ${ROUNDS} rodadas: uma só reversão, com o valor integral`, async () => {
+  test(`REFUND and ROLLBACK of the same BET, ${ROUNDS} rounds: a single reversal, for the full amount`, async () => {
     for (let round = 0; round < ROUNDS; round++) {
       const wallet = await openWallet();
       const bet = payload(wallet, 'BET');
@@ -420,7 +420,7 @@ describe('REFUND e ROLLBACK concorrentes', () => {
     }
   }, TIMEOUT);
 
-  test('reversões disputando o lock, e a mesma reversão repetida vira replay', async () => {
+  test('reversals competing for the lock, and the same reversal repeated becomes a replay', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     await submit(bet);
@@ -431,7 +431,7 @@ describe('REFUND e ROLLBACK concorrentes', () => {
     await assertFinancialInvariants(db, wallet.id);
   }, TIMEOUT);
 
-  test('ROLLBACK de WIN disputando o saldo com uma BET: cada ordem tem o próprio código, e nunca negativo', async () => {
+  test('ROLLBACK of a WIN competing for the balance with a BET: each order has its own code, and never negative', async () => {
     for (let round = 0; round < ROUNDS; round++) {
       const wallet = await openWallet('0.00');
       const win = payload(wallet, 'WIN', { money: brl('50.00') });
@@ -448,7 +448,7 @@ describe('REFUND e ROLLBACK concorrentes', () => {
     }
   }, TIMEOUT);
 
-  test('reversões inválidas ao lado de uma válida: só a válida move saldo', async () => {
+  test('invalid reversals next to a valid one: only the valid one moves balance', async () => {
     const wallet = await openWallet();
     const other = await openWallet();
     const bet = payload(wallet, 'BET');
@@ -472,7 +472,7 @@ describe('REFUND e ROLLBACK concorrentes', () => {
     await assertFinancialInvariants(db, other.id);
   }, TIMEOUT);
 
-  test('a mesma reversão não duplica crédito com a BET e o ROLLBACK do REFUND em paralelo', async () => {
+  test('the same reversal does not duplicate credit with the BET and the ROLLBACK of the REFUND in parallel', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     await submit(bet);
@@ -486,8 +486,8 @@ describe('REFUND e ROLLBACK concorrentes', () => {
   }, TIMEOUT);
 });
 
-describe('README seção 13.7: referência fora de ordem (sem o retrier, que é da Etapa 10)', () => {
-  test('reversão antes da referência: pendente, sem movimento, e com o necessário para reprocessar', async () => {
+describe('README section 13.7: out-of-order reference (without the retrier running)', () => {
+  test('reversal before the reference: pending, no movement, and with what is needed to reprocess', async () => {
     const wallet = await openWallet();
     const betId = randomUUID();
     const refund = payload(wallet, 'REFUND', { referenceExternalTransactionId: betId });
@@ -517,7 +517,7 @@ describe('README seção 13.7: referência fora de ordem (sem o retrier, que é 
     await assertFinancialInvariants(db, wallet.id);
   });
 
-  test('a mesma pendente em paralelo: uma linha, um evento, e replays sem saldo', async () => {
+  test('the same pending one in parallel: one row, one event, and replays without balance', async () => {
     const wallet = await openWallet();
     const rollback = payload(wallet, 'ROLLBACK', { referenceExternalTransactionId: 'nao-chegou' });
     const replies = await underBarrier(wallet, () => Array.from({ length: 10 }, () => submit(rollback)), 5);
@@ -528,7 +528,7 @@ describe('README seção 13.7: referência fora de ordem (sem o retrier, que é 
     await assertFinancialInvariants(db, wallet.id);
   }, TIMEOUT);
 
-  test(`reversão e referência chegando juntas, ${ROUNDS} rodadas: as duas ordens são válidas e nenhuma duplica`, async () => {
+  test(`reversal and reference arriving together, ${ROUNDS} rounds: both orders are valid and neither duplicates`, async () => {
     for (let round = 0; round < ROUNDS; round++) {
       const wallet = await openWallet();
       const betId = randomUUID();
@@ -540,7 +540,7 @@ describe('README seção 13.7: referência fora de ordem (sem o retrier, que é 
       if (refund!.status === 201) {
         expect(await walletRow(wallet.id)).toEqual({ balance: '100.00', version: 3 });
       } else {
-        // Sem o retrier a pendente fica como está; a chegada tardia completa é da Etapa 10.
+        // Sem o retrier rodando a pendente fica como está; a resolução tardia é coberta em pending-reference-retrier.test.ts.
         expect(refund!.status).toBe(202);
         expect(await walletRow(wallet.id)).toEqual({ balance: '75.00', version: 2 });
       }
@@ -549,7 +549,7 @@ describe('README seção 13.7: referência fora de ordem (sem o retrier, que é 
   }, TIMEOUT);
 });
 
-describe('atomicidade com falhas reais dentro da transação SQL', () => {
+describe('atomicity with real failures inside the SQL transaction', () => {
   // A falha é um trigger criado só neste banco descartável e restrito a uma wallet: o PostgreSQL recusa
   // o comando no meio da transação, sem nenhum gancho no código de produção.
   const created: string[] = [];
@@ -559,7 +559,7 @@ describe('atomicidade com falhas reais dentro da transação SQL', () => {
 
   async function failOn(table: string, condition: string, sqlstate: string) {
     const name = `fail_${randomUUID().replaceAll('-', '')}`;
-    await db.sql(`CREATE FUNCTION ${name}() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'falha injetada' USING ERRCODE = '${sqlstate}'; END; $$ LANGUAGE plpgsql`);
+    await db.sql(`CREATE FUNCTION ${name}() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'injected failure' USING ERRCODE = '${sqlstate}'; END; $$ LANGUAGE plpgsql`);
     await db.sql(`CREATE TRIGGER ${name} BEFORE INSERT OR UPDATE ON ${table} FOR EACH ROW WHEN (${condition}) EXECUTE FUNCTION ${name}()`);
     const drop = [`DROP TRIGGER IF EXISTS ${name} ON ${table}`, `DROP FUNCTION IF EXISTS ${name}()`];
     created.push(...drop);
@@ -567,10 +567,10 @@ describe('atomicidade com falhas reais dentro da transação SQL', () => {
   }
 
   const points: Array<[string, (walletId: string) => [string, string]]> = [
-    ['ao gravar o saldo', (id) => ['wallets', `NEW.id = '${id}' AND NEW.version > 1`]],
-    ['ao gravar o lançamento', (id) => ['wallet_ledger_entries', `NEW.wallet_id = '${id}' AND NEW.wallet_version > 1`]],
-    ['no primeiro evento', (id) => ['outbox_messages', `NEW.event_type = 'WagerTransactionProcessed' AND NEW.payload->'data'->>'walletId' = '${id}' AND NEW.payload->'data'->>'kind' = 'BET'`]],
-    ['no último evento', (id) => ['outbox_messages', `NEW.event_type = 'WalletBalanceChanged' AND NEW.payload->'data'->>'walletId' = '${id}' AND (NEW.payload->'data'->>'walletVersion')::int > 1`]],
+    ['when writing the balance', (id) => ['wallets', `NEW.id = '${id}' AND NEW.version > 1`]],
+    ['when writing the ledger entry', (id) => ['wallet_ledger_entries', `NEW.wallet_id = '${id}' AND NEW.wallet_version > 1`]],
+    ['on the first event', (id) => ['outbox_messages', `NEW.event_type = 'WagerTransactionProcessed' AND NEW.payload->'data'->>'walletId' = '${id}' AND NEW.payload->'data'->>'kind' = 'BET'`]],
+    ['on the last event', (id) => ['outbox_messages', `NEW.event_type = 'WalletBalanceChanged' AND NEW.payload->'data'->>'walletId' = '${id}' AND (NEW.payload->'data'->>'walletVersion')::int > 1`]],
   ];
 
   async function assertNothingApplied(wallet: OpenedWallet, external: string) {
@@ -582,7 +582,7 @@ describe('atomicidade com falhas reais dentro da transação SQL', () => {
   }
 
   for (const [where, point] of points) {
-    test(`falha transitória ${where}: 503, nada gravado, e o reenvio aplica uma vez`, async () => {
+    test(`transient failure ${where}: 503, nothing written, and the resend applies once`, async () => {
       const wallet = await openWallet();
       const bet = payload(wallet, 'BET');
       const [table, condition] = point(wallet.id);
@@ -600,7 +600,7 @@ describe('atomicidade com falhas reais dentro da transação SQL', () => {
       await assertFinancialInvariants(db, wallet.id);
     }, TIMEOUT);
 
-    test(`constraint violada ${where}: 500, FAILED auditável e nenhum efeito`, async () => {
+    test(`constraint violated ${where}: 500, audited FAILED and no effect`, async () => {
       const wallet = await openWallet();
       const bet = payload(wallet, 'BET');
       const [table, condition] = point(wallet.id);
@@ -620,7 +620,7 @@ describe('atomicidade com falhas reais dentro da transação SQL', () => {
     }, TIMEOUT);
   }
 
-  test('erro inesperado do banco: 500 sem estado terminal, e o reenvio aplica', async () => {
+  test('unexpected database error: 500 without a terminal state, and the resend applies', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     const [table, condition] = points[1]![1](wallet.id);
@@ -633,7 +633,7 @@ describe('atomicidade com falhas reais dentro da transação SQL', () => {
     await assertFinancialInvariants(db, wallet.id);
   }, TIMEOUT);
 
-  test('sessão derrubada no meio da transação: 503, sem efeito parcial, e o reenvio aplica', async () => {
+  test('session dropped mid-transaction: 503, no partial effect, and the resend applies', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     const lock = await holdWalletLock(db, wallet.id);
@@ -650,7 +650,7 @@ describe('atomicidade com falhas reais dentro da transação SQL', () => {
     await assertFinancialInvariants(db, wallet.id);
   }, TIMEOUT);
 
-  test('sessão derrubada depois de gravar a transação e o saldo: nada fica confirmado', async () => {
+  test('session dropped after writing the transaction and the balance: nothing is confirmed', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     const name = `sleep_${randomUUID().replaceAll('-', '')}`;
@@ -671,7 +671,7 @@ describe('atomicidade com falhas reais dentro da transação SQL', () => {
     expect(await assertNothingApplied(wallet, bet.externalTransactionId)).toHaveLength(0);
   }, TIMEOUT);
 
-  test('mais quedas que o tamanho do pool: a instância continua atendendo e encerra normalmente', async () => {
+  test('more drops than the pool size: the instance keeps serving and shuts down normally', async () => {
     const wallet = await openWallet('1000.00');
     const instance = await startApiCluster(db, 1, { DB_CONNECT_TIMEOUT_MS: '2000' });
     const send = () => {
@@ -699,7 +699,7 @@ describe('atomicidade com falhas reais dentro da transação SQL', () => {
     await assertFinancialInvariants(db, wallet.id);
   }, TIMEOUT);
 
-  test('statement timeout real: 503 (SQLSTATE 57014), nunca 500', async () => {
+  test('real statement timeout: 503 (SQLSTATE 57014), never 500', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     const impatient = await startApiCluster(db, 1, { DB_QUERY_TIMEOUT_MS: '200', DB_LOCK_TIMEOUT_MS: '5000' });
@@ -715,7 +715,7 @@ describe('atomicidade com falhas reais dentro da transação SQL', () => {
     expect(await assertNothingApplied(wallet, bet.externalTransactionId)).toHaveLength(0);
   }, TIMEOUT);
 
-  test('falha em uma wallet não atinge as operações simultâneas de outra', async () => {
+  test('a failure on one wallet does not reach the simultaneous operations of another', async () => {
     const [broken, healthy] = [await openWallet(), await openWallet()];
     const [table, condition] = points[1]![1](broken.id);
     await failOn(table, condition, '55P03');
@@ -732,8 +732,8 @@ describe('atomicidade com falhas reais dentro da transação SQL', () => {
   }, TIMEOUT);
 });
 
-describe('garantias que não dependem da aplicação', () => {
-  test('a idempotência sobrevive à troca de todas as instâncias: nada fica em memória', async () => {
+describe('guarantees that do not depend on the application', () => {
+  test('idempotency survives replacing every instance: nothing is kept in memory', async () => {
     const wallet = await openWallet();
     const bet = payload(wallet, 'BET');
     const first = await submit(bet);
@@ -748,7 +748,7 @@ describe('garantias que não dependem da aplicação', () => {
     await assertFinancialInvariants(db, wallet.id);
   }, TIMEOUT);
 
-  test('sem a aplicação, o banco barra saldo negativo sob UPDATEs simultâneos', async () => {
+  test('without the application, the database blocks a negative balance under simultaneous UPDATEs', async () => {
     const wallet = await openWallet();
     const results = await Promise.allSettled(
       Array.from({ length: 2 }, () => db.sql('UPDATE wallets SET balance = balance - 80 WHERE id = ?', [wallet.id])),
@@ -757,7 +757,7 @@ describe('garantias que não dependem da aplicação', () => {
     expect((await walletRow(wallet.id)).balance).toBe('20.00');
   }, TIMEOUT);
 
-  test('sem a aplicação, duas linhas com a mesma chave não coexistem', async () => {
+  test('without the application, two rows with the same key do not coexist', async () => {
     const wallet = await openWallet();
     const insert = (external: string) => db.sql(
       `INSERT INTO wager_transactions (id, provider_id, external_transaction_id, idempotency_key, payload_hash, wallet_id, player_id, round_id, game_id, kind, amount, currency, status, observed_balance, observed_balance_currency, created_at, processed_at)
@@ -768,7 +768,7 @@ describe('garantias que não dependem da aplicação', () => {
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
   }, TIMEOUT);
 
-  test('o ledger não pode ser alterado nem excluído, mesmo durante operações em andamento', async () => {
+  test('the ledger cannot be changed or deleted, even during operations in progress', async () => {
     const wallet = await openWallet();
     const bets = Array.from({ length: 4 }, () => submit(payload(wallet, 'BET', { money: brl('1.00') })));
     const attacks = await Promise.allSettled([
@@ -782,7 +782,7 @@ describe('garantias que não dependem da aplicação', () => {
     await assertFinancialInvariants(db, wallet.id);
   }, TIMEOUT);
 
-  test('o verificador de invariantes detecta divergência: um saldo adulterado não passa', async () => {
+  test('the invariant checker detects a divergence: a tampered balance does not pass', async () => {
     const wallet = await openWallet();
     await submit(payload(wallet, 'BET'));
     await assertFinancialInvariants(db, wallet.id);
