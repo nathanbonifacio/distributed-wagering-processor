@@ -1,8 +1,9 @@
-import { BadRequestException, Controller, Get, Inject, NotFoundException, Param, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, HttpCode, Inject, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { uuidSchema } from '../../../shared/application/contract-schemas';
 import { ProviderAuthGuard } from '../../../shared/presentation/provider-auth.guard';
 import { parseRequest } from '../../../shared/presentation/request-validation';
+import { type ReconciliationReport, ReconcileWallet } from '../application/reconcile-wallet.use-case';
 import { WalletQueries } from '../application/wallet-queries';
 import type { WalletLedgerEntry } from '../domain/ledger-entry.entity';
 import type { Wallet } from '../domain/wallet.entity';
@@ -39,12 +40,26 @@ function ledgerEntryResponse(entry: WalletLedgerEntry) {
   };
 }
 
+function reconciliationResponse(report: ReconciliationReport) {
+  return {
+    walletId: report.walletId,
+    storedBalance: report.storedBalance.toJSON(),
+    calculatedBalance: report.calculatedBalance.toJSON(),
+    difference: report.difference.toJSON(),
+    consistent: report.consistent,
+    checkedEntries: report.checkedEntries,
+  };
+}
+
 const walletNotFound = () => new NotFoundException({ code: 'WALLET_NOT_FOUND', message: 'wallet não encontrada' });
 
 @Controller('wallets')
 @UseGuards(ProviderAuthGuard)
 export class WalletController {
-  constructor(@Inject(WalletQueries) private readonly queries: WalletQueries) {}
+  constructor(
+    @Inject(WalletQueries) private readonly queries: WalletQueries,
+    @Inject(ReconcileWallet) private readonly reconcileWallet: ReconcileWallet,
+  ) {}
 
   @Get(':walletId')
   async get(@Param('walletId') rawWalletId: string) {
@@ -70,5 +85,14 @@ export class WalletController {
       // Página incompleta é o fim. Página cheia exatamente no fim leva a uma última página vazia.
       nextCursor: page.entries.length === limit && page.lastSeq ? encodeLedgerCursor(page.lastSeq) : null,
     };
+  }
+
+  /** Só confere: uma divergência volta como `consistent: false` e é registrada, mas nada é corrigido. */
+  @Post(':walletId/reconciliation')
+  @HttpCode(200)
+  async reconcile(@Param('walletId') rawWalletId: string) {
+    const report = await this.reconcileWallet.execute(parseRequest(uuidSchema, rawWalletId));
+    if (!report) throw walletNotFound();
+    return reconciliationResponse(report);
   }
 }
