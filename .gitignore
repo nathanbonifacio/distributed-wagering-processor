@@ -15,3 +15,7 @@ coverage/
 .claude/
 CLAUDE.md
 CLAUDE.local.md
+
+# Relatórios temporários de auditoria e logs locais
+test/audit/
+*.log

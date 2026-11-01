@@ -1,7 +1,7 @@
 # 0003 — Persistência com MikroORM
 
-Status: implementada na Etapa 4 · Data: 31/10/2026.
-Destina-se à futura seção de persistência do `ARCHITECTURE.md` (README, seção 4: ORM, `Money` e estratégia
+Status: implementada · Data: 31/10/2026.
+Consolidada na seção 5 ("PostgreSQL e MikroORM") do `ARCHITECTURE.md` (README, seção 4: ORM, `Money` e estratégia
 transacional precisam ser justificados).
 
 ## Domínio separado do ORM
@@ -61,9 +61,9 @@ original fica em `cause`, que não deve ir a logs sem filtro):
 
 ## Inbox e outbox
 
-Só a persistência que as próximas etapas precisam, com registros planos. As entidades `InboxMessage`,
+Só a persistência de que o consumer e o publisher precisariam (implementados depois; ver 0007 e 0008), com registros planos. As entidades `InboxMessage`,
 `OutboxMessage` e `IntegrationEvent` entram com o consumer e o publisher.
 
-## O que ainda depende da Etapa 5
+## O que ainda dependia do caso de uso principal (ver 0004)
 
-Lock, replay, idempotência e atomicidade existem como peças testadas, mas nenhum fluxo de produção as usa.
+Lock, replay, idempotência e atomicidade existem como peças testadas, mas nenhum fluxo de produção as usava na época; `ProcessWagerTransaction` (0004) passou a usá-las.

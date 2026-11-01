@@ -1,7 +1,7 @@
 # 0010 — Observabilidade
 
-Status: implementada na Etapa 12 · Data: 01/11/2026.
-Destina-se às seções de observabilidade e limitações do futuro `ARCHITECTURE.md`.
+Status: implementada · Data: 01/11/2026.
+Consolidada na seção 16 do `ARCHITECTURE.md` e na seção "Health e métricas" do `README.md`.
 
 ## Logs
 

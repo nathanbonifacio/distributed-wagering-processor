@@ -1,7 +1,7 @@
 # 0007 — Transactional Outbox
 
-Status: implementada na Etapa 8 · Data: 31/10/2026.
-Destina-se às seções de mensageria, garantias de entrega e limitações do futuro `ARCHITECTURE.md`.
+Status: implementada · Data: 31/10/2026.
+Consolidada nas seções 10 e 13 do `ARCHITECTURE.md`. Veja também a atualização no fim deste registro.
 
 ## Destino e envelope
 
@@ -45,6 +45,29 @@ tornam o caso visível. `last_error` guarda só o nome do erro.
 ## Limitações
 
 - Sem rotina de limpeza da outbox.
-- Sem métricas de outbox lag (Etapa 12).
+- Neste registro não havia métricas de outbox lag (adicionadas depois; ver 0010).
 - Um evento que o transporte recuse para sempre segue em retentativa a cada 5 minutos, sem DLQ própria.
-- A queda de processos reais é testada na Etapa 13; aqui, o fluxo é interrompido no ponto exato.
+- Aqui a queda é simulada interrompendo o fluxo no ponto exato; a queda de processos reais foi testada depois (ver 0011).
+
+## Atualização posterior: resultado de uma reserva vencida
+
+Registrada depois da implementação inicial, a partir de uma revisão de concorrência do publisher. **Substitui o passo 3**
+descrito acima; o restante deste registro continua valendo.
+
+O problema: se uma publicação demorava mais que a reserva, outra instância assumia o evento, e o resultado atrasado da
+primeira instância podia sobrescrever o agendamento e a contagem de tentativas da segunda. Só gerava duplicidade
+(permitida pelo at-least-once), nunca perda de evento nem reabertura de um evento publicado, mas desfazia o backoff.
+
+- O resultado de cada tentativa é gravado em uma transação que **trava as linhas** (`FOR UPDATE`, em ordem de `id`) e decide
+  sobre o **estado atual** da linha, não sobre a cópia reservada.
+- O `next_attempt_at` serve de **token** da reserva: uma nova reserva só ocorre quando `agora >= next_attempt_at` e grava
+  `agora + lease`, estritamente maior (por isso `PublishOutboxBatch` exige `leaseMs` inteiro positivo). Sem coluna nem
+  migration novas.
+- Falha de uma reserva já substituída só incrementa `attempts` e guarda o erro, sem alterar o agendamento do novo dono;
+  falha da reserva vigente agenda o backoff sobre as tentativas gravadas; sucesso, mesmo atrasado, grava `published_at` (a
+  primeira data prevalece); um evento publicado nunca é reaberto.
+- `OutboxRepository.save` é um *compare-and-set*: só grava se `attempts` e `next_attempt_at` ainda forem os lidos e o evento
+  não estiver publicado (devolve `false` caso contrário), e recusa mensagens nunca lidas da tabela.
+
+Limitação residual: um relógio que recue mais que a reserva, e um instante exato, poderiam fazer um resultado atrasado
+parecer vigente. O efeito também se limita a duplicidade. Fechar isso por completo exigiria uma coluna de token.

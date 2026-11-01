@@ -1,12 +1,12 @@
 # 0006 — Testes de concorrência
 
-Status: implementada na Etapa 7 · Data: 31/10/2026.
-Destina-se às seções de concorrência, testes e limitações do futuro `ARCHITECTURE.md`.
+Status: implementada · Data: 31/10/2026.
+Consolidada nas seções 8, 13 e 15 do `ARCHITECTURE.md`.
 
 ## Como a concorrência é provocada
 
 Três instâncias independentes da API real (`ApiModule`), cada uma com o próprio pool, sobre um PostgreSQL real e
-descartável. Rodam no mesmo processo; a prova com processos separados é da Etapa 13.
+descartável. Rodam no mesmo processo; a prova com processos separados foi feita depois (ver 0011).
 
 - **Barreira:** outra sessão segura a linha da wallet, os pedidos saem, e `pg_stat_activity` confirma que as sessões
   estão de fato esperando o lock antes de soltar. Não define quem vence.
@@ -41,7 +41,8 @@ Não houve efeito financeiro: o PostgreSQL desfaz a transação da sessão derru
 
 ## Oito cenários da seção 13 do README
 
-Todos são obrigatórios para a entrega final; a divisão é só organizacional.
+Todos são obrigatórios para a entrega final; a divisão é só organizacional. **A tabela abaixo é o retrato do momento deste registro:
+todos os oito cenários foram comprovados depois**, em `test/concurrency` (ver 0011 e a seção 13 do `ARCHITECTURE.md`).
 
 | Cenário | Etapa | Situação |
 |---|---|---|

@@ -1,7 +1,7 @@
 # 0005 — API HTTP
 
-Status: implementada na Etapa 6 · Data: 31/10/2026.
-Destina-se às seções de HTTP, autenticação e interpretações do futuro `ARCHITECTURE.md`.
+Status: implementada · Data: 31/10/2026.
+Consolidada nas seções 6, 17 e 18 do `ARCHITECTURE.md` e na documentação de endpoints do `README.md`.
 
 ## Rotas
 
@@ -15,8 +15,8 @@ Destina-se às seções de HTTP, autenticação e interpretações do futuro `AR
 | `GET /providers/:providerId/wagering/transactions/:externalTransactionId` | 200 |
 | `GET /health/live`, `GET /health/ready` | 200 (já existiam) |
 
-`POST /wallets/:walletId/reconciliation` **não existe ainda**: não há caso de uso de reconciliação, e o endpoint
-será entregue com ele na Etapa 11.
+`POST /wallets/:walletId/reconciliation` **não existia neste registro** (foi entregue depois, junto do caso de uso de
+reconciliação; ver 0009): na época não havia caso de uso de reconciliação.
 
 ## Status HTTP
 
@@ -41,11 +41,11 @@ código continua dizendo o que aconteceu com a operação, e `idempotentReplay` 
 
 Todo erro é `{ code, message }`, mais `issues` na validação, em um filtro global (`src/api-exception.filter.ts`).
 Mensagens de infraestrutura, causas do driver e stack traces nunca saem na resposta. O log de falhas não tratadas
-leva só o nome do erro, porque a mensagem pode conter SQL; o diagnóstico completo é da Etapa 12.
+leva só o nome do erro, porque a mensagem pode conter SQL; o diagnóstico completo ficou para a observabilidade (ver 0010).
 
 ## Validação
 
-- zod, com schemas em `application` para o consumer SQS da Etapa 9 reutilizar o de submissão.
+- zod, com schemas em `application` para o consumer SQS (ver 0008) reutilizar o de submissão.
 - `amount` é string com exatamente 2 casas, pela regra única de `Money.from`. Não há coerção de `number`.
 - UUIDs são normalizados para minúsculas. Sem isso, o mesmo id em maiúsculas viraria `PLAYER_WALLET_MISMATCH`
   e outro hash.
@@ -76,5 +76,5 @@ Sem isso, **qualquer cliente pode agir em nome de qualquer provider**; é uma li
 ## Módulos
 
 Os controllers ficam em `WageringHttpModule` e `WalletHttpModule`, importados só pela API. O worker importa o
-`WageringModule`, sem rotas, e não expõe a API. `ApiModule.register(env)` permite aos testes subirem o mesmo módulo
+`WageringModule`, sem rotas, e não expõe a API de negócio (o health e as métricas foram adicionados depois; ver 0010). `ApiModule.register(env)` permite aos testes subirem o mesmo módulo
 do `main.api.ts` em um banco descartável.

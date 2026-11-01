@@ -1,7 +1,7 @@
 # 0011 — Testes multiprocesso e tolerância a falhas
 
-Status: implementada na Etapa 13 · Data: 01/11/2026.
-Destina-se às seções de testes, recuperação de falhas e limitações do futuro `ARCHITECTURE.md`.
+Status: implementada · Data: 01/11/2026.
+Consolidada nas seções 13 e 15 do `ARCHITECTURE.md` e na seção "Testes" do `README.md`.
 
 ## Como os testes provam as propriedades distribuídas
 
@@ -60,8 +60,8 @@ porque o worker a devolveu, e não porque o tempo passou.
 ## Limitações
 
 - Não há teste que derrube o PostgreSQL ou o SQS inteiros com processos reais; a indisponibilidade das duas
-  dependências é coberta pelos testes de health e de retry (Etapas 9 e 11), com proxy TCP, dentro do processo.
+  dependências é coberta pelos testes de health e de retry (`health.test.ts` e `wager-consumer.test.ts`), com proxy TCP, dentro do processo.
 - O portão reconhece as chamadas do SDK pelo protocolo JSON da AWS (e pelo protocolo de query, como reserva).
   Se o SDK mudar de protocolo, a detecção precisa ser revisada.
-- Os testes dependem de tempo real (vários segundos para subir processos); a suíte multiprocesso leva cerca de
-  30 s. Nenhuma espera é fixa, mas um ambiente muito lento pode exigir prazos maiores.
+- Os testes dependem de tempo real (vários segundos para subir processos); a suíte `test:concurrency` inteira levou de 55 a 75 s nas
+  últimas execuções (Windows). Nenhuma espera é fixa, mas um ambiente muito lento pode exigir prazos maiores.

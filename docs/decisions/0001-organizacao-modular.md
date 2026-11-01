@@ -1,7 +1,7 @@
 # 0001 — Organização modular do código
 
-Status: aprovada · Data: 31/10/2026 · Origem: revisão da estrutura após as Etapas 0 a 2.
-Destina-se à futura seção "Organização do código" do `ARCHITECTURE.md`.
+Status: aprovada e implementada · Data: 31/10/2026 · Origem: revisão da estrutura, feita quando o domínio financeiro ficou pronto.
+Consolidada na seção 2 ("Organização do código") do `ARCHITECTURE.md`. O "PDF de arquitetura" citado abaixo é o planejamento inicial do projeto e não faz parte do repositório.
 
 ## Contexto
 
@@ -39,7 +39,7 @@ Módulos técnicos pequenos (hoje `health`) permanecem planos, sem camadas.
 | `*.use-case.ts` | serviço de aplicação que coordena um caso de uso |
 | `*.service.ts` | reservado a injetáveis do Nest (ex.: `HealthService`) |
 | `*.dto.ts` | contrato HTTP (schema zod) |
-| `*.enum.ts` | enum, em `enums/` quando houver pelo menos 2 (adiado até a Etapa 4 ou 6) |
+| `*.enum.ts` | enum, em `enums/` quando houver pelo menos 2 (regra mantida; na implementação final os enums ficam junto das entidades e nenhuma pasta `enums/` foi necessária) |
 
 ### Regras de dependência (verificadas em `test/architecture`)
 
@@ -68,7 +68,7 @@ ledger pertencem a `wallet`; a `WagerTransaction` e o `WagerProcessor.processOpe
 `wagering`. Como `wagering` já depende de `wallet`, colocar o `OpenWallet` em `wallet` criaria o ciclo
 `wallet → wagering → wallet`. O teste de arquitetura reprova esse ciclo.
 
-**Decisão (Etapa 6): opção A**, por ser o único fluxo que cruza os agregados até agora (ver 0005). Opções avaliadas:
+**Decisão: opção A**, por ser o único fluxo que cruza os agregados até então (ver 0005). A opção A foi mantida na implementação final. Opções avaliadas:
 
 | Opção | Composição | Custo |
 |---|---|---|
@@ -85,5 +85,4 @@ mais simples; havendo mais de um, a opção C. Qualquer escolha exige declarar a
 - Os schemas do MikroORM devem ser registrados em **lista explícita**, nunca por busca em pastas, para não
   depender de TypeScript em tempo de execução nem da árvore de diretórios.
 - Não há alias de caminho (`paths`); os imports continuam relativos.
-- O `ARCHITECTURE.md` deve registrar que esta organização difere da seção 12.1 do PDF apenas pelo nível
-  `app/`.
+- Esta organização difere da seção 12.1 do PDF de planejamento apenas pelo nível `app/`.

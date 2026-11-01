@@ -1,7 +1,7 @@
 # 0002 — Schema PostgreSQL
 
-Status: implementada na Etapa 3 · Data: 31/10/2026.
-Destina-se à futura seção de persistência do `ARCHITECTURE.md`.
+Status: implementada · Data: 31/10/2026.
+Consolidada na seção 4 ("Modelo de dados") do `ARCHITECTURE.md`.
 
 ## Tabelas
 
@@ -26,11 +26,11 @@ garantia, já que o replay devolve os dados da própria transação, inclusive `
 | LOSS, REJECTED e FAILED sem lançamento | Trigger no `INSERT` do ledger |
 | Dedupe de mensagem | PK `(consumer_name, message_id)` |
 
-**Dependem das próximas etapas, não do schema:**
+**Dependem do código da aplicação, não do schema (implementado depois deste registro):**
 
 - **Saldo igual ao ledger:** `wallets.balance` e a soma do ledger só ficam coerentes se forem escritos na
   mesma transação. O `UNIQUE (wallet_id, wallet_version)` detecta parte dos desvios, mas não todos.
-- **Sem lost update:** exige `SELECT ... FOR UPDATE` na wallet (Etapas 4 e 5).
+- **Sem lost update:** exige `SELECT ... FOR UPDATE` na wallet (`findByIdForUpdate`; ver 0003 e 0004).
 - **Regras 2 a 5 do README para player, moeda, rodada e valor da referência:** comparam outra linha. O
   domínio as valida; o banco só garante a wallet.
 - **Atomicidade entre inbox, saldo, ledger e outbox:** exige uma única transação SQL.

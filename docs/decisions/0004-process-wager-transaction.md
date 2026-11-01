@@ -1,7 +1,7 @@
 # 0004 — ProcessWagerTransaction
 
-Status: implementada na Etapa 5 · Data: 31/10/2026.
-Destina-se às seções de concorrência, idempotência e interpretações do futuro `ARCHITECTURE.md`.
+Status: implementada · Data: 31/10/2026.
+Consolidada nas seções 6 a 9 e 18 do `ARCHITECTURE.md`.
 
 ## Fluxo
 
@@ -62,7 +62,7 @@ uma operação concorrente. Se também falhar, prevalece o erro original.
 
 Resolvidas por `(providerId, referenceExternalTransactionId)`. Uma referência que exista só em outro provider
 conta como ausente. A pendente nasce com `attempts = 0` e `next_attempt_at` 5 segundos à frente, o primeiro
-intervalo de `min(5s·2^n, 5min)`. O retrier é da Etapa 10; `findDuePendingIds` e `WagerProcessor.process` já
+intervalo de `min(5s·2^n, 5min)`. O retrier foi implementado depois (ver 0009); `findDuePendingIds` e `WagerProcessor.process` já
 aceitam a retomada.
 
 ## Outbox
@@ -71,13 +71,13 @@ O README exige o evento na mesma transação, então os eventos são gravados aq
 `WagerTransactionProcessed`, `WagerTransactionRejected`, `WagerTransactionPendingReference` e
 `WalletBalanceChanged`. O `eventId` é o id da linha.
 
-Continua na Etapa 8: `OutboxMessage`, backoff e o publisher. Nada é publicado nesta etapa, e nenhum evento é
+Na época deste registro, `OutboxMessage`, o backoff e o publisher ainda não existiam (ver 0007): nada era publicado, e nenhum evento é
 gravado em replay ou em conflito.
 
-## Fora desta etapa
+## Fora do escopo deste registro (resolvido depois)
 
 - **Formato dos campos:** os UUIDs e o `kind` são validados pelo adaptador (zod). `Money` e as regras de
   `WagerTransaction` já são validados aqui.
-- **Inbox:** a Etapa 9 precisa registrar a mensagem dentro desta mesma transação, por um parâmetro opcional do
+- **Inbox:** o consumer SQS (ver 0008) passou a registrar a mensagem dentro desta mesma transação, por um parâmetro opcional do
   caso de uso. A persistência já expõe `inbox` no contexto.
-- **OpenWallet:** continua em aberto (ver 0001). Os testes abrem as wallets com `processOpening`.
+- **OpenWallet:** estava em aberto; foi decidido em 0001 (opção A) e implementado como descrito em 0005. Os testes abrem as wallets com `processOpening`.

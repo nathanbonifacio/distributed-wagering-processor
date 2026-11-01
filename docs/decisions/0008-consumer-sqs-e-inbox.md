@@ -1,7 +1,7 @@
 # 0008 — Consumer SQS e inbox
 
-Status: implementada na Etapa 9 · Data: 31/10/2026.
-Destina-se às seções de mensageria, interpretações e limitações do futuro `ARCHITECTURE.md`.
+Status: implementada · Data: 31/10/2026.
+Consolidada nas seções 11, 12 e 13 do `ARCHITECTURE.md`.
 
 ## Atomicidade
 
@@ -46,13 +46,13 @@ do lock e das constraints. **Trade-off do FIFO:** uma mensagem em retry bloqueia
 ## Encerramento
 
 Em SIGTERM ou SIGINT: interrompe o long polling, conclui o que está em andamento até
-`SQS_CONSUMER_SHUTDOWN_TIMEOUT_MS` (8 s, abaixo dos 10 s do `docker stop`) e devolve a visibilidade do que não começou.
+`SQS_CONSUMER_SHUTDOWN_TIMEOUT_MS` (8 s, abaixo dos 10 s do `docker stop`) e devolve a visibilidade do que não começou. Vencido o prazo, o que ainda estava em andamento também é devolvido (ver 0011).
 Sem commit não há ack, então o que não terminar volta para a fila.
 
 ## Limitações
 
 - A visibilidade não é renovada durante o processamento. Se uma mensagem passar dos 30 s da fila, pode ser entregue
   a outro consumidor; o efeito não se repete.
-- O reprocessamento de `PENDING_REFERENCE` é da Etapa 10.
-- A queda real de processos é da Etapa 13; aqui o ponto da falha é reproduzido no mesmo processo.
+- Neste registro o reprocessamento de `PENDING_REFERENCE` ainda não existia (implementado depois; ver 0009).
+- Aqui o ponto da falha é reproduzido no mesmo processo; a queda real de processos foi testada depois (ver 0011).
 - A DLQ não tem rotina de reprocessamento; reenviar é manual.

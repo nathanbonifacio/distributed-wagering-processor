@@ -1,7 +1,7 @@
 # 0009 — Retrier de referências pendentes e reconciliação
 
-Status: implementadas nas Etapas 10 e 11 · Data: 01/11/2026.
-Destina-se às seções de referências fora de ordem, reconciliação e interpretações do futuro `ARCHITECTURE.md`.
+Status: implementadas · Data: 01/11/2026.
+Consolidada nas seções 12 e 14 do `ARCHITECTURE.md`.
 
 ## Retrier de PENDING_REFERENCE
 
