@@ -1,6 +1,7 @@
 import { type DynamicModule, Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { type EntitySchema, MikroORM } from '@mikro-orm/postgresql';
 import { APP_CONFIG, type AppConfig } from '../shared/infrastructure/config.module';
+import { releaseDroppedConnections } from './dropped-connection-release';
 
 @Module({})
 export class DatabaseModule implements OnApplicationShutdown {
@@ -29,6 +30,7 @@ export class DatabaseModule implements OnApplicationShutdown {
                 connectionTimeoutMillis: config.DB_CONNECT_TIMEOUT_MS,
                 query_timeout: config.DB_QUERY_TIMEOUT_MS,
                 statement_timeout: config.DB_QUERY_TIMEOUT_MS,
+                onPoolCreated: releaseDroppedConnections,
               },
             }),
         },
